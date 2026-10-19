@@ -62,7 +62,9 @@ data class TextRegion(
     /** Mã ngôn ngữ nguồn (ja, zh, ko, en). */
     val sourceLang: String = "",
     /** Người dùng đã xem và bấm "Lưu bản dịch" → được vẽ lên ảnh dù từng bị đánh dấu cần kiểm tra. */
-    val confirmed: Boolean = false
+    val confirmed: Boolean = false,
+    /** Vết xử lý cho màn hình DEBUG. */
+    val trace: RegionTrace? = null
 ) {
     val needsReview: Boolean get() = reviewNotes.isNotEmpty()
 

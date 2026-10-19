@@ -15,9 +15,14 @@ android {
         versionCode = 4
         versionName = "0.1.3-an-toan-anh-goc"
 
-        // Chỉ giữ thư viện cho chip ARM của điện thoại thật → APK nhẹ hơn nhiều (bỏ x86/x86_64 cho máy ảo).
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Chỉ giữ thư viện cho chip ARM của điện thoại thật → APK nhẹ hơn nhiều.
+        // -PallAbis: giữ cả x86_64 để chạy bài chẩn đoán trên trình giả lập (CI).
+        if (!project.hasProperty("allAbis")) {
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
         }
     }
 
@@ -80,4 +85,7 @@ dependencies {
     implementation("com.google.mlkit:translate:17.0.3")
 
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("junit:junit:4.13.2")
 }

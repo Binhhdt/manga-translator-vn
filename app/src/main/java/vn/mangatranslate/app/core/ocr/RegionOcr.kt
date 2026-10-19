@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import android.util.Log
 import vn.mangatranslate.app.core.image.BitmapGray
 import vn.mangatranslate.app.core.model.BoxF
+import vn.mangatranslate.app.core.model.OcrAttempt
 import vn.mangatranslate.app.core.model.OcrLine
+import vn.mangatranslate.app.core.model.TraceLine
 import vn.mangatranslate.app.core.vision.GrayImage
 import vn.mangatranslate.app.core.vision.TextLayoutAnalyzer
 import vn.mangatranslate.app.core.vision.VerticalComposer
@@ -19,6 +21,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * - "Ảnh đen trắng": chỉ chạy khi các cách trên cho kết quả yếu.
  *
  * Chọn theo [OcrCandidateScorer]. Không xoay cả ảnh 90°: ký tự sẽ nằm nghiêng và ML Kit đọc kém hơn.
+ * Mọi lần đọc được ghi lại NGUYÊN VẸN trong [Outcome.attempts] cho màn hình DEBUG.
  */
 class RegionOcr(
     private val ocr: OCRProcessor,
@@ -37,10 +40,23 @@ class RegionOcr(
         val notes: List<String>,
         val validChars: Int,
         val invalidChars: Int,
-        val score: Float
+        val score: Float,
+        val attempts: List<OcrAttempt>,
+        val layoutInfo: String
     )
 
-    private class Candidate(val method: String, val text: String, val vertical: Boolean, val box: BoxF?)
+    private class Candidate(
+        val method: String,
+        val text: String,
+        val vertical: Boolean,
+        val box: BoxF?,
+        val lines: List<TraceLine>,
+        val inputW: Int,
+        val inputH: Int
+    )
+
+    /** Kết quả một lần gọi ML Kit: dòng đã lọc furigana + toàn bộ dòng thô để ghi vết. */
+    private class Read(val kept: List<OcrLine>, val trace: List<TraceLine>)
 
     suspend fun read(
         crop: Bitmap,
@@ -49,7 +65,8 @@ class RegionOcr(
         pageText: String? = null,
         pageVertical: Boolean? = null,
         hintCharSize: Float? = null,
-        tag: String = "vùng"
+        tag: String = "vùng",
+        pageLines: List<TraceLine> = emptyList()
     ): Outcome? {
         if (crop.width <= 0 || crop.height <= 0) {
             Log.w(TAG, "[$tag] vùng cắt rỗng ${crop.width}x${crop.height} — bỏ qua")
@@ -62,30 +79,24 @@ class RegionOcr(
         val candidates = ArrayList<Candidate>()
 
         if (!pageText.isNullOrBlank()) {
-            candidates += Candidate(METHOD_PAGE, pageText, pageVertical ?: cjk, null)
+            candidates += Candidate(METHOD_PAGE, pageText, pageVertical ?: cjk, null, pageLines, 0, 0)
         }
 
         // A — đọc trực tiếp vùng cắt.
         val direct = recognizeLines(crop, script, charSize, "$tag/$METHOD_DIRECT")
-        val directVertical = if (direct.isNotEmpty()) detector.isVertical(direct) else (pageVertical ?: cjk)
-        if (direct.isNotEmpty()) {
+        val directVertical = if (direct.kept.isNotEmpty()) detector.isVertical(direct.kept) else (pageVertical ?: cjk)
+        if (direct.kept.isNotEmpty()) {
             candidates += Candidate(
-                METHOD_DIRECT, detector.buildText(direct, directVertical), directVertical, BoxF.unionOf(direct.map { it.box })
+                METHOD_DIRECT, detector.buildText(direct.kept, directVertical), directVertical,
+                BoxF.unionOf(direct.kept.map { it.box }), direct.trace, crop.width, crop.height
             )
         }
 
         // C — tách cột dọc, xếp lại thành hàng ngang.
-        val vertical = directVertical || (direct.isEmpty() && cjk)
+        val vertical = directVertical || (direct.kept.isEmpty() && cjk)
         val useColumns = layout != null && vertical && layout.mainColumns.any { it.cells.size >= 2 }
         if (useColumns && layout != null) {
-            composeAndRead(gray, layout, script, "$tag/$METHOD_COLUMNS")?.let { text ->
-                val cols = layout.mainColumns
-                val box = BoxF(
-                    cols.minOf { it.left }.toFloat(), cols.minOf { it.top }.toFloat(),
-                    cols.maxOf { it.right }.toFloat(), cols.maxOf { it.bottom }.toFloat()
-                )
-                candidates += Candidate(METHOD_COLUMNS, text, true, box)
-            }
+            composeAndRead(gray, layout, script, "$tag/$METHOD_COLUMNS")?.let { c -> candidates += c }
         }
 
         val expected = if (useColumns && layout != null) layout.expectedChars else null
@@ -98,16 +109,20 @@ class RegionOcr(
         if (weak) {
             val bw = BitmapGray.toBitmap(BitmapGray.binarized(gray))
             try {
-                val lines = recognizeLines(bw, script, charSize, "$tag/$METHOD_BINARY")
-                if (lines.isNotEmpty()) {
-                    val v = detector.isVertical(lines)
-                    candidates += Candidate(METHOD_BINARY, detector.buildText(lines, v), v, BoxF.unionOf(lines.map { it.box }))
+                val r = recognizeLines(bw, script, charSize, "$tag/$METHOD_BINARY")
+                if (r.kept.isNotEmpty()) {
+                    val v = detector.isVertical(r.kept)
+                    candidates += Candidate(
+                        METHOD_BINARY, detector.buildText(r.kept, v), v, BoxF.unionOf(r.kept.map { it.box }),
+                        r.trace, bw.width, bw.height
+                    )
                     best = pick(candidates, langCode, expected)
                 }
             } finally {
                 bw.recycle()
             }
         }
+        val layoutInfo = describeLayout(layout, useColumns)
         val chosen = best ?: return null
 
         val notes = ArrayList<String>()
@@ -119,10 +134,25 @@ class RegionOcr(
         }
         val st = OcrCandidateScorer.stats(chosen.text, langCode)
         val outSize = if (useColumns && layout != null) layout.charSize else charSize
+        val attempts = candidates.map { c ->
+            OcrAttempt(
+                c.method, c.inputW, c.inputH, c.lines, c.text,
+                OcrCandidateScorer.score(c.text, langCode, expected), c === chosen
+            )
+        }
         return Outcome(
             chosen.text, chosen.method, chosen.vertical, outSize, chosen.box, notes,
-            st.valid, st.invalid, OcrCandidateScorer.score(chosen.text, langCode, expected)
+            st.valid, st.invalid, OcrCandidateScorer.score(chosen.text, langCode, expected), attempts, layoutInfo
         )
+    }
+
+    private fun describeLayout(layout: TextLayoutAnalyzer.Layout?, used: Boolean): String {
+        if (layout == null) return ""
+        val main = layout.mainColumns
+        val cells = main.joinToString("/") { it.cells.size.toString() }
+        return "Phân tích ảnh: ${main.size} cột chính (phải→trái, số ô: $cells), " +
+            "${layout.rubyColumns.size} cột furigana bị bỏ, cỡ chữ ~${layout.charSize.toInt()}px" +
+            if (used) "" else " — không dùng cách tách cột"
     }
 
     private fun pick(cands: List<Candidate>, lang: String, expected: Int?): Candidate? {
@@ -139,7 +169,7 @@ class RegionOcr(
     }
 
     /** Một cách đọc lỗi (ví dụ ảnh bất thường) chỉ làm mất cách đọc đó, không làm hỏng cả vùng. */
-    private suspend fun recognizeLines(bmp: Bitmap, script: OCRProcessor.Script, charSize: Float, tag: String): List<OcrLine> {
+    private suspend fun recognizeLines(bmp: Bitmap, script: OCRProcessor.Script, charSize: Float, tag: String): Read {
         val up = (TARGET_CHAR / charSize).coerceIn(1f, MAX_UPSCALE)
         val lines = try {
             ocr.recognize(bmp, script, upscale = up, tag = tag).flatMap { it.lines }
@@ -149,17 +179,31 @@ class RegionOcr(
             Log.w(TAG, "[$tag] OCR lỗi trên ảnh ${bmp.width}x${bmp.height}: ${e.message}", e)
             emptyList()
         }
-        return RubyFilter.filter(lines)
+        val kept = RubyFilter.filter(lines)
+        val keptSet = kept.toHashSet()
+        return Read(kept, lines.map { TraceLine(it.text, it.box, removedAsRuby = it !in keptSet) })
     }
 
-    private suspend fun composeAndRead(gray: GrayImage, layout: TextLayoutAnalyzer.Layout, script: OCRProcessor.Script, tag: String): String? {
+    private suspend fun composeAndRead(
+        gray: GrayImage,
+        layout: TextLayoutAnalyzer.Layout,
+        script: OCRProcessor.Script,
+        tag: String
+    ): Candidate? {
         val comp = VerticalComposer.compose(gray, layout) ?: return null
         val bmp = BitmapGray.toBitmap(comp)
         return try {
             val up = (TARGET_CHAR / layout.charSize).coerceIn(1f, MAX_UPSCALE)
             val lines = ocr.recognize(bmp, script, upscale = up, tag = tag).flatMap { it.lines }
             // Mỗi cột dọc đã thành một hàng ngang: đọc theo hàng, trên xuống dưới.
-            detector.buildText(lines, vertical = false).takeIf { it.isNotBlank() }
+            val text = detector.buildText(lines, vertical = false)
+            if (text.isBlank()) return null
+            val cols = layout.mainColumns
+            val box = BoxF(
+                cols.minOf { it.left }.toFloat(), cols.minOf { it.top }.toFloat(),
+                cols.maxOf { it.right }.toFloat(), cols.maxOf { it.bottom }.toFloat()
+            )
+            Candidate(METHOD_COLUMNS, text, true, box, lines.map { TraceLine(it.text, it.box) }, comp.width, comp.height)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

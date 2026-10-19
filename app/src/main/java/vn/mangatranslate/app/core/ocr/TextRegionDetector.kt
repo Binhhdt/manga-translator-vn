@@ -21,7 +21,9 @@ class TextRegionDetector(private val mergeFactor: Float = 0.8f) {
         val box: BoxF,
         val text: String,
         val vertical: Boolean,
-        val lineHeight: Float
+        val lineHeight: Float,
+        /** Các dòng OCR thô tạo nên vùng (để ghi vết DEBUG). */
+        val lines: List<OcrLine> = emptyList()
     )
 
     fun detect(blocks: List<OcrBlock>, rightToLeft: Boolean): List<DetectedRegion> {
@@ -71,7 +73,8 @@ class TextRegionDetector(private val mergeFactor: Float = 0.8f) {
                 box = BoxF.unionOf(lines.map { it.box }),
                 text = text,
                 vertical = isVertical,
-                lineHeight = median(members.map { thickness[it] })
+                lineHeight = median(members.map { thickness[it] }),
+                lines = lines
             )
         }
         return sortReadingOrder(regions, rightToLeft)

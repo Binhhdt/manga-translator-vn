@@ -20,6 +20,9 @@ import kotlinx.coroutines.tasks.await
  */
 class TranslationEngine {
 
+    /** ML Kit chỉ có mô hình dịch từ/sang tiếng Anh; cặp Nhật→Việt được dịch qua tiếng Anh trung gian (theo tài liệu Google). */
+    val name: String = "Google ML Kit (Nhật → Anh → Việt, offline)"
+
     private val translators = HashMap<String, Translator>()
     private val modelManager = RemoteModelManager.getInstance()
     private val cache = object : LinkedHashMap<String, String>(256, 0.75f, true) {

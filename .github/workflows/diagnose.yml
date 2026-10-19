@@ -1,0 +1,71 @@
+name: Chẩn đoán OCR & bộ dịch
+
+# Chạy khi đẩy lên nhánh "diag". Kết quả được đẩy lên nhánh diag-app và diag-mt (tệp văn bản).
+on:
+  push:
+    branches: [ diag ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mt-compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cài thư viện
+        run: |
+          pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+          pip install --quiet "transformers==4.46.3" sentencepiece sacremoses protobuf accelerate
+      - name: So sánh bộ dịch
+        run: python scripts/diag/mt_eval.py mt_eval.txt || true
+      - name: Đẩy kết quả lên nhánh diag-mt
+        if: always()
+        run: |
+          mkdir -p /tmp/res && cp mt_eval.txt /tmp/res/ || echo "không có kết quả" > /tmp/res/mt_eval.txt
+          cd /tmp/res && git init -q && git checkout -q -b diag-mt
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add -A && git commit -q -m "Kết quả so sánh bộ dịch ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" diag-mt
+
+  app-on-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build APK + APK kiểm thử (đủ ABI cho trình giả lập)
+        run: chmod +x gradlew && ./gradlew --no-daemon -PallAbis assembleDebug assembleDebugAndroidTest
+      - name: Bật KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Chạy chẩn đoán trên trình giả lập
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash scripts/diag/run_on_emulator.sh
+      - name: Đẩy kết quả lên nhánh diag-app
+        if: always()
+        run: |
+          mkdir -p /tmp/res
+          for f in diag_app.txt instrument.txt logcat.txt; do [ -f "$f" ] && cp "$f" /tmp/res/; done
+          [ -n "$(ls -A /tmp/res)" ] || echo "không có kết quả" > /tmp/res/empty.txt
+          cd /tmp/res && git init -q && git checkout -q -b diag-app
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add -A && git commit -q -m "Kết quả chẩn đoán ứng dụng ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" diag-app

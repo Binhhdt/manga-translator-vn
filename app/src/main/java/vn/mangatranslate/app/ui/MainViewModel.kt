@@ -334,9 +334,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         workJob = viewModelScope.launch {
             _state.update { it.copy(busy = "Đang dịch lại…") }
             try {
-                val raw = withContext(Dispatchers.Default) {
-                    pageTranslator.translateText(sourceText, lang, glossary) { stage -> _state.update { it.copy(busy = stage) } }
+                val tr = withContext(Dispatchers.Default) {
+                    pageTranslator.translateText(sourceText, lang, glossary, { stage -> _state.update { it.copy(busy = stage) } })
                 }
+                val raw = tr.afterGlossary
                 val pronoun = _state.value.settings.pronounStyle
                 val translated = pageTranslator.finalize(raw, pronoun)
                 val (rev, inf) = pageTranslator.review(sourceText, translated, lang.code ?: "", glossary)
@@ -347,7 +348,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         sourceText = sourceText, rawTranslation = raw,
                         translatedText = translated, userEdited = false,
                         reviewNotes = rev, infoNotes = inf, sourceLang = lang.code ?: r.sourceLang,
-                        confirmed = false
+                        confirmed = false,
+                        trace = r.trace?.copy(mtInput = tr.engineInput, mtRaw = tr.engineOutput, engine = tr.engine)
                     )
                 }
             } catch (e: CancellationException) {

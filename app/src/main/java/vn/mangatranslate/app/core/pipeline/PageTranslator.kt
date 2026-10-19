@@ -7,13 +7,17 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import vn.mangatranslate.app.core.image.BitmapGray
 import vn.mangatranslate.app.core.image.CropMath
+import vn.mangatranslate.app.core.image.DiagImage
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.BubbleShape
 import vn.mangatranslate.app.core.model.OcrBlock
 import vn.mangatranslate.app.core.model.OcrLine
 import vn.mangatranslate.app.core.model.PronounStyle
+import vn.mangatranslate.app.core.model.RegionTrace
 import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.model.TextRegion
+import vn.mangatranslate.app.core.model.TraceLine
+import vn.mangatranslate.app.core.model.TranslationTrace
 import vn.mangatranslate.app.core.ocr.OCRProcessor
 import vn.mangatranslate.app.core.ocr.RegionOcr
 import vn.mangatranslate.app.core.ocr.RubyFilter
@@ -65,7 +69,8 @@ class PageTranslator(
         val layoutBox: BoxF,
         val bubble: BubbleShape?,
         val method: String,
-        val notes: List<String>
+        val notes: List<String>,
+        val trace: RegionTrace
     )
 
     private val regionOcr = RegionOcr(ocr, detector)
@@ -151,8 +156,9 @@ class PageTranslator(
         for ((i, d) in ordered.withIndex()) {
             onStage("Đang dịch vùng ${i + 1}/${ordered.size}…")
             var translateError: String? = null
-            val raw = isolate("dịch vùng #${i + 1}", skipped) { translateRaw(code, d.text, glossary) }
-                ?: "".also { translateError = "Lỗi khi dịch vùng này — hãy bấm “Dịch lại”" }
+            val tr = isolate("dịch vùng #${i + 1}", skipped) { translateRaw(code, d.text, glossary) }
+            if (tr == null) translateError = "Lỗi khi dịch vùng này — hãy bấm “Dịch lại”"
+            val raw = tr?.afterGlossary ?: ""
             val translated = finalize(raw, pronoun)
             val (rev0, inf) = review(d.text, translated, code, glossary)
             val rev = listOfNotNull(translateError) + rev0
@@ -169,7 +175,8 @@ class PageTranslator(
                 reviewNotes = d.notes + rev,
                 infoNotes = inf,
                 ocrMethod = d.method,
-                sourceLang = code
+                sourceLang = code,
+                trace = d.trace.copy(mtInput = tr?.engineInput ?: "", mtRaw = tr?.engineOutput ?: "", engine = engine.name)
             )
         }
         return PageResult(lang, regions, skipped)
@@ -223,13 +230,16 @@ class PageTranslator(
             if (!b.isInteriorEroded(gx, gy)) px[y * w + x] = Color.WHITE
         }
         val crop = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+        val cropPng = DiagImage.png(crop)
 
         val kept = RubyFilter.filter(lines)
+        val keptSet = kept.toHashSet()
+        val pageLines = lines.map { TraceLine(it.text, it.box, removedAsRuby = it !in keptSet) }
         val pageVertical = kept.isNotEmpty() && detector.isVertical(kept)
         val pageText = detector.buildText(kept, pageVertical)
         val hint = if (kept.isNotEmpty()) detector.estimateThickness(kept, pageVertical) else null
         val outcome = try {
-            regionOcr.read(crop, code, script, pageText, pageVertical, hint, tag)
+            regionOcr.read(crop, code, script, pageText, pageVertical, hint, tag, pageLines)
         } finally {
             crop.recycle()
         }
@@ -248,7 +258,11 @@ class PageTranslator(
             layoutBox = inner,
             bubble = BubbleShape(fromGray(b.box, s), inner, b, s),
             method = outcome?.method ?: RegionOcr.METHOD_PAGE,
-            notes = outcome?.notes ?: emptyList()
+            notes = outcome?.notes ?: emptyList(),
+            trace = RegionTrace(
+                "Bong bóng", l, t, w, h, cropPng, pageLines, outcome?.attempts ?: emptyList(),
+                outcome?.layoutInfo ?: "", text
+            )
         )
     }
 
@@ -263,8 +277,12 @@ class PageTranslator(
     ): Draft? {
         val cropBox = d.box.expand(d.lineHeight * 0.7f)
         val (crop, l, t) = cropOf(bitmap, cropBox, tag) ?: return null
+        val cw = crop.width
+        val ch = crop.height
+        val cropPng = DiagImage.png(crop)
+        val pageLines = d.lines.map { TraceLine(it.text, it.box) }
         val outcome = try {
-            regionOcr.read(crop, code, script, d.text, d.vertical, d.lineHeight, tag)
+            regionOcr.read(crop, code, script, d.text, d.vertical, d.lineHeight, tag, pageLines)
         } finally {
             crop.recycle()
         }
@@ -275,7 +293,8 @@ class PageTranslator(
         return Draft(
             textBox, text, outcome?.vertical ?: d.vertical, lh,
             layoutAround(gray, s, textBox, lh), null,
-            outcome?.method ?: RegionOcr.METHOD_PAGE, outcome?.notes ?: emptyList()
+            outcome?.method ?: RegionOcr.METHOD_PAGE, outcome?.notes ?: emptyList(),
+            RegionTrace("Ngoài bong bóng", l, t, cw, ch, cropPng, pageLines, outcome?.attempts ?: emptyList(), outcome?.layoutInfo ?: "", text)
         )
     }
 
@@ -291,6 +310,9 @@ class PageTranslator(
         val cropBox = fromGray(candGray, s)
         val (crop, l, t) = cropOf(bitmap, cropBox, tag) ?: return null
         val textBoxFallback = cropBox.clampTo(bitmap.width.toFloat(), bitmap.height.toFloat())
+        val cw = crop.width
+        val ch = crop.height
+        val cropPng = DiagImage.png(crop)
         val outcome = (
             try {
                 regionOcr.read(crop, code, script, tag = tag)
@@ -304,7 +326,8 @@ class PageTranslator(
         return Draft(
             textBox, outcome.text, outcome.vertical, outcome.charSize,
             layoutAround(gray, s, textBox, outcome.charSize), null, outcome.method,
-            outcome.notes + "Vùng này OCR toàn trang đã bỏ sót — được tìm và đọc lại, hãy kiểm tra"
+            outcome.notes + "Vùng này OCR toàn trang đã bỏ sót — được tìm và đọc lại, hãy kiểm tra",
+            RegionTrace("Bỏ sót (tìm lại)", l, t, cw, ch, cropPng, emptyList(), outcome.attempts, outcome.layoutInfo, outcome.text)
         )
     }
 
@@ -325,13 +348,15 @@ class PageTranslator(
             val lang = resolveLanguage(crop, requested, onStage)
             val code = lang.code ?: "en"
             onStage("Đang nhận dạng chữ trong vùng chọn…")
+            val cropPng = DiagImage.png(crop)
             val outcome = regionOcr.read(crop, code, scriptOf(lang), tag = "khoanh tay")
             val text = outcome?.text ?: ""
-            val raw = if (text.isBlank()) "" else {
+            val tr = if (text.isBlank()) null else {
                 prepareModel(lang, onStage)
                 onStage("Đang dịch…")
                 translateRaw(code, text, glossary)
             }
+            val raw = tr?.afterGlossary ?: ""
             val translated = finalize(raw, pronoun)
             val (rev, inf) = if (text.isBlank()) listOf("Không đọc được chữ — hãy tự nhập") to emptyList<String>()
             else review(text, translated, code, glossary)
@@ -348,7 +373,11 @@ class PageTranslator(
                 reviewNotes = (outcome?.notes ?: emptyList()) + rev,
                 infoNotes = inf,
                 ocrMethod = outcome?.method?.let { "${RegionOcr.METHOD_MANUAL} · $it" } ?: RegionOcr.METHOD_MANUAL,
-                sourceLang = code
+                sourceLang = code,
+                trace = RegionTrace(
+                    "Khoanh tay", l, t, crop.width, crop.height, cropPng, emptyList(), outcome?.attempts ?: emptyList(),
+                    outcome?.layoutInfo ?: "", text, tr?.engineInput ?: "", tr?.engineOutput ?: "", engine.name
+                )
             )
             return ManualResult(lang, region)
         } finally {
@@ -358,11 +387,25 @@ class PageTranslator(
 
     // ------------------------------------------------------------------ dịch
 
-    /** Dịch lại một câu (sau khi người dùng sửa chữ gốc). Trả về bản dịch máy (đã áp dụng thuật ngữ). */
-    suspend fun translateText(text: String, lang: SourceLanguage, glossary: List<GlossaryEntry>, onStage: (String) -> Unit): String {
-        if (text.isBlank()) return ""
+    /**
+     * Dịch một câu (sửa chữ gốc rồi dịch lại, hoặc màn hình kiểm tra bộ dịch). Trả về từng bước.
+     * @param normalize false = gửi NGUYÊN VĂN vào bộ dịch (không chuẩn hóa, không thuật ngữ) để kiểm tra bộ dịch độc lập.
+     */
+    suspend fun translateText(
+        text: String,
+        lang: SourceLanguage,
+        glossary: List<GlossaryEntry>,
+        onStage: (String) -> Unit,
+        normalize: Boolean = true
+    ): TranslationTrace {
+        val code = lang.code ?: throw UserFacingException("Chưa chọn ngôn ngữ nguồn.")
+        if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
         prepareModel(lang, onStage)
-        return translateRaw(lang.code ?: return "", text, glossary)
+        if (!normalize) {
+            val out = engine.translate(code, text)
+            return TranslationTrace(text, text, out, out, engine.name)
+        }
+        return translateRaw(code, text, glossary)
     }
 
     fun finalize(raw: String, pronoun: PronounStyle): String =
@@ -375,10 +418,11 @@ class PageTranslator(
         return (QualityChecker.ocrIssues(source, code) + tr) to info
     }
 
-    private suspend fun translateRaw(code: String, text: String, glossary: List<GlossaryEntry>): String {
-        if (text.isBlank()) return ""
+    private suspend fun translateRaw(code: String, text: String, glossary: List<GlossaryEntry>): TranslationTrace {
+        if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
         val prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
-        return Glossary.applyAfter(engine.translate(code, prepared), glossary)
+        val out = engine.translate(code, prepared)
+        return TranslationTrace(text, prepared, out, Glossary.applyAfter(out, glossary), engine.name)
     }
 
     /** Đoán ngôn ngữ dựa trên loại ký tự đọc được (Kana → Nhật, Hangul → Hàn, chỉ Hán → Trung, Latin → Anh). */
