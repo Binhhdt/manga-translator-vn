@@ -179,3 +179,12 @@ Thuật toán tìm bong bóng / tách cột / dò chữ bỏ sót còn được 
 - **Giai đoạn 3**: BatchTranslationManager (WorkManager, tạm dừng/tiếp tục/hủy, dịch lại trang lỗi, lưu tiến trình), Room lưu dự án, xuất cả chương JPG/PNG/CBZ.
 - **Giai đoạn 4**: kéo thả/đổi cỡ/xoay khung chữ, chọn font, bảng thuật ngữ & tên nhân vật theo từng bộ truyện, undo/redo.
 - **Giai đoạn 5**: tối ưu RAM, xử lý lỗi, khóa ký cố định, APK release.
+
+## Giấy phép
+
+Mã nguồn: MIT (xem `LICENSE`). Thành phần bên thứ ba:
+- Mô hình dịch Opus-MT `Helsinki-NLP/opus-mt-ja-en` (Language Technology Research Group, University of Helsinki) —
+  được tải và chuyển sang ONNX khi build (`scripts/models/`), không lưu trong repo.
+- Google ML Kit (Text Recognition v2, Translation), ONNX Runtime (MIT), Jetpack Compose (Apache-2.0).
+
+Repo không chứa trang truyện nào. Ảnh dùng để thử chỉ đặt cục bộ trong `app/src/androidTest/assets/` (bị `.gitignore`).

@@ -162,6 +162,13 @@ class DiagnosticsTest {
         emit()
         emit("== 2. Quy trình đầy đủ trên trang 006 (OCR + ghép + dịch) ==")
         try {
+            // Ảnh trang truyện có bản quyền nên KHÔNG nằm trong repo công khai. Muốn chạy phần này, đặt ảnh vào
+            // app/src/androidTest/assets/page006.png (đã có trong .gitignore).
+            if (inst.context.assets.list("")?.contains("page006.png") != true) {
+                emit("Bỏ qua: không có ảnh thử page006.png trong androidTest/assets (không đưa ảnh có bản quyền lên repo).")
+                emit("##### HẾT #####")
+                return@runBlocking
+            }
             val bmp = inst.context.assets.open("page006.png").use { BitmapFactory.decodeStream(it) }
             emit("Bộ dịch: ${engine.name}")
             val pt = PageTranslator(OCRProcessor(), TextRegionDetector(), engine)

@@ -13,3 +13,7 @@
 *.keystore
 !debug.keystore
 app/src/main/assets/mt/
+
+# Ảnh truyện dùng để thử (có bản quyền) — không đưa lên repo
+app/src/androidTest/assets/*.png
+app/src/androidTest/assets/*.jpg
