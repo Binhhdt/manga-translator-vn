@@ -148,6 +148,13 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
             Hint("Mỗi dòng “nguồn = đích”. Bên trái là chữ Nhật/Trung/Hàn → thay trước khi dịch để giữ tên riêng (黒崎 = Kurosaki, 神奈川 = Kanagawa). Bên trái là chữ Latin/Việt → sửa sau khi dịch (Blacklord = Kurosaki). Viết tắt bóng đá GK, FW, MF, DF, PK, FK, CK trong truyện Nhật được tự hiểu đúng.")
 
+            Section("Chẩn đoán")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = vm::openDebug) { Text("DEBUG vùng chữ") }
+                FilledTonalButton(onClick = vm::openMtTest) { Text("Kiểm tra bộ dịch") }
+            }
+            Hint("DEBUG: xem ảnh cắt, chữ OCR nguyên vẹn, văn bản gửi vào bộ dịch và kết quả thô của từng vùng ở trang đang mở. Kiểm tra bộ dịch: gõ chữ Nhật để thử bộ dịch không qua OCR.")
+
             Section("Định dạng khi lưu ảnh")
             ExportFormat.entries.forEach { f ->
                 RadioRow(f.label, s.exportFormat == f) { vm.updateSettings { it.copy(exportFormat = f) } }

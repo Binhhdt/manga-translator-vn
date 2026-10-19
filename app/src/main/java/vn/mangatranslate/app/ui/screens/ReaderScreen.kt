@@ -117,7 +117,8 @@ fun ReaderScreen(state: UiState, vm: MainViewModel) {
                 onToggleOriginal = vm::toggleShowTranslated,
                 onEdit = { vm.setMode(ReaderMode.EDIT) },
                 onAddRegion = { vm.setMode(ReaderMode.ADD_REGION) },
-                onSave = onSave
+                onSave = onSave,
+                onDebug = vm::openDebug
             )
         }
 
@@ -231,7 +232,8 @@ private fun ReaderToolbar(
     onToggleOriginal: () -> Unit,
     onEdit: () -> Unit,
     onAddRegion: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onDebug: () -> Unit
 ) {
     val ready = !state.loadingPage && state.imageWidth > 0
     Row(
@@ -254,6 +256,7 @@ private fun ReaderToolbar(
         ToolButton("Sửa chữ", enabled = state.regions.isNotEmpty(), highlighted = state.mode == ReaderMode.EDIT, onClick = onEdit)
         ToolButton("Thêm vùng", enabled = ready, highlighted = state.mode == ReaderMode.ADD_REGION, onClick = onAddRegion)
         ToolButton("Lưu ảnh", enabled = state.regions.isNotEmpty(), onClick = onSave)
+        ToolButton("DEBUG", enabled = state.regions.isNotEmpty(), onClick = onDebug)
         ToolButton("▶", enabled = state.pageIndex < state.pages.lastIndex, onClick = onNext)
     }
 }

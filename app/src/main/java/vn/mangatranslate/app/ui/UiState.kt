@@ -6,7 +6,7 @@ import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.model.TextRegion
 import vn.mangatranslate.app.data.AppSettings
 
-enum class Screen { HOME, READER, SETTINGS }
+enum class Screen { HOME, READER, SETTINGS, DEBUG, MT_TEST }
 
 enum class ReaderMode { VIEW, EDIT, ADD_REGION }
 
@@ -24,6 +24,13 @@ data class UiMessage(val text: String, val id: Long = System.nanoTime())
 data class UiState(
     val screen: Screen = Screen.HOME,
     val screenBeforeSettings: Screen = Screen.HOME,
+    /** Màn hình trước khi mở DEBUG / kiểm tra bộ dịch. */
+    val screenBeforeTool: Screen = Screen.HOME,
+    /** Màn hình kiểm tra bộ dịch nhập tay. */
+    val mtTestLang: SourceLanguage = SourceLanguage.JAPANESE,
+    val mtTestNormalize: Boolean = true,
+    val mtTestResult: vn.mangatranslate.app.core.model.TranslationTrace? = null,
+    val mtTestError: String? = null,
     val title: String = "",
     val pages: List<PageSource> = emptyList(),
     val pageIndex: Int = 0,

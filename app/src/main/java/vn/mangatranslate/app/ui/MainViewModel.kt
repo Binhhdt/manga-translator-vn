@@ -532,6 +532,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeSettings() = _state.update { it.copy(screen = it.screenBeforeSettings) }
 
+    // ---------------------------------------------------------------- chẩn đoán
+
+    private fun openTool(screen: Screen) = _state.update {
+        val from = if (it.screen == Screen.DEBUG || it.screen == Screen.MT_TEST) it.screenBeforeTool else it.screen
+        it.copy(screenBeforeTool = from, screen = screen)
+    }
+
+    fun openDebug() = openTool(Screen.DEBUG)
+    fun openMtTest() = openTool(Screen.MT_TEST)
+    fun closeTool() = _state.update { it.copy(screen = it.screenBeforeTool) }
+
+    /** Trạng thái vẽ của một vùng, dùng trong màn hình DEBUG. */
+    fun drawnStatus(r: TextRegion): String {
+        val s = _state.value
+        return when {
+            !r.enabled -> "ĐÃ ẨN (không vẽ)"
+            r.translatedText.isBlank() -> "không có bản dịch (không vẽ)"
+            r.id in s.hiddenIds -> "CHƯA vẽ — bản dịch đáng ngờ, chờ xác nhận"
+            r.id in s.overflowIds -> "CHƯA vẽ — không đủ chỗ trong khung"
+            s.translatedChunks.isEmpty() -> "chưa vẽ"
+            else -> "đã vẽ lên ảnh"
+        }
+    }
+
+    fun debugReport(): String {
+        val s = _state.value
+        return "Bộ dịch: ${translationEngine.name}\n" +
+            vn.mangatranslate.app.core.model.DiagReport.format(
+                s.currentPage?.name ?: "trang", s.imageWidth, s.imageHeight, s.regions
+            ) { drawnStatus(it) }
+    }
+
+    val engineName: String get() = translationEngine.name
+
+    fun setMtTestLang(lang: SourceLanguage) = _state.update { it.copy(mtTestLang = lang, mtTestResult = null, mtTestError = null) }
+    fun setMtTestNormalize(v: Boolean) = _state.update { it.copy(mtTestNormalize = v) }
+
+    /** Kiểm tra bộ dịch ĐỘC LẬP với OCR: dịch văn bản người dùng gõ, hiện từng bước. */
+    fun runMtTest(text: String) {
+        val s = _state.value
+        if (s.busy != null || text.isBlank()) return
+        workJob = viewModelScope.launch {
+            _state.update { it.copy(busy = "Đang dịch…", mtTestError = null) }
+            try {
+                val tr = withContext(Dispatchers.Default) {
+                    pageTranslator.translateText(
+                        text.trim(), s.mtTestLang, if (s.mtTestNormalize) s.settings.glossary() else emptyList(),
+                        { stage -> _state.update { it.copy(busy = stage) } }, normalize = s.mtTestNormalize
+                    )
+                }
+                _state.update { it.copy(busy = null, mtTestResult = tr) }
+            } catch (e: CancellationException) {
+                _state.update { it.copy(busy = null) }
+                throw e
+            } catch (e: Throwable) {
+                _state.update { it.copy(busy = null, mtTestError = e.message ?: e.javaClass.simpleName) }
+            }
+        }
+    }
+
     fun closeReader() = _state.update { it.copy(screen = Screen.HOME, mode = ReaderMode.VIEW, selectedRegionId = null) }
 
     fun resumeReader() {
