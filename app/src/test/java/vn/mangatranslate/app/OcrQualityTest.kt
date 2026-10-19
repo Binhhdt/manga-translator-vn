@@ -150,3 +150,13 @@ class BuiltinPlacesTest {
         org.junit.Assert.assertEquals("大分よくなった", g.applyBefore("大分よくなった", g.BUILTIN_JA_PLACES))
     }
 }
+
+class PlaceCheckTest {
+    @org.junit.Test
+    fun literalPlaceTranslationIsDetected() {
+        val g = vn.mangatranslate.app.core.translate.Glossary
+        // Kết quả đo thật: "deer islands" thay cho Kagoshima.
+        org.junit.Assert.assertTrue(g.missingTargets("あまりの鹿児島のパワーに腕を骨折", "…sức mạnh của rất nhiều hòn đảo hươu.", g.BUILTIN_JA_PLACES).isNotEmpty())
+        org.junit.Assert.assertTrue(g.missingTargets("あまりの鹿児島のパワー", "…sức mạnh của Kagoshima!", g.BUILTIN_JA_PLACES).isEmpty())
+    }
+}

@@ -30,9 +30,9 @@ object Glossary {
         .sortedByDescending { it.source.length } // cụm dài thay trước
 
     /**
-     * Tên 47 tỉnh của Nhật (chữ Hán → romaji), áp dụng sẵn trước khi dịch tiếng Nhật để bộ dịch không dịch nghĩa
-     * từng chữ (đo thật: 鹿児島 → "deer islands", 神奈川 → "Kana River"). Bỏ 大分 ("đáng kể") và 三重 ("ba lớp")
-     * vì trùng từ thường. Bảng thuật ngữ của người dùng được áp trước nên có thể ghi đè.
+     * Tên 47 tỉnh của Nhật (chữ Hán → romaji) dùng để KIỂM TRA sau khi dịch: tên có trong câu gốc mà không có trong
+     * bản dịch → "Cần kiểm tra" (đo thật: 鹿児島 → "deer islands"). Không thay trước khi dịch vì đo thật cho thấy
+     * Opus-MT viết sai romaji khi nhận chữ La-tinh ("Khangawa", "Kagoshama"). Bỏ 大分 ("đáng kể"), 三重 ("ba lớp").
      */
     val BUILTIN_JA_PLACES: List<GlossaryEntry> = listOf(
         "北海道" to "Hokkaido", "青森" to "Aomori", "岩手" to "Iwate", "宮城" to "Miyagi", "秋田" to "Akita",

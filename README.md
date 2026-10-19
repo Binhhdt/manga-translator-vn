@@ -105,6 +105,22 @@ Kết luận: **giữ ML Kit**, nâng chất lượng bằng OCR đúng (nguyên
 OCR thay thế đáng cân nhắc tiếp theo: **manga-ocr** (Apache-2.0, chuyên chữ dọc + furigana manga, bản lượng tử hóa cho Android
 khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
 
+## 5a. Bộ dịch tiếng Nhật (0.2.0) — chọn theo số liệu đo thật
+
+Đo trên trình giả lập Android (CI) với ML Kit thật, trang 006:
+- ML Kit dịch Nhật→Việt **qua tiếng Anh** (kết quả trùng 13/13 câu với Nhật→Anh→Việt), và bước Nhật→Anh là chỗ sai:
+  黒崎 → "Blacklord", 腕を骨折 → "Arms fracture" → "Giũa vũ khí".
+- So sánh 6 bộ dịch offline miễn phí: **Opus-MT Nhật→Anh** (Helsinki-NLP, Apache-2.0) hiểu tiếng Nhật tốt nhất
+  ("Kurosaki", "I broke my arm…"). Opus-MT Nhật→Việt trực tiếp, M2M100, NLLB-200, Qwen2.5 0.5B/1.5B đều kém hơn hoặc quá nặng.
+- Vì vậy: **Opus-MT Nhật→Anh chạy trong ứng dụng** (ONNX Runtime, int8 ~140 MB, beam search 4) → giữ tên romaji
+  bằng dấu QQn → **ML Kit Anh→Việt**. Có thể chọn "Chỉ ML Kit" trong Cài đặt; màn hình "Kiểm tra bộ dịch" so sánh hai cách.
+- Bản Kotlin được đối chiếu với bản Python tham chiếu trên thiết bị: tách từ khớp 12/12 câu.
+- Giới hạn còn lại: Opus-MT vẫn có thể dịch sai câu dài/khẩu ngữ; ML Kit Anh→Việt văn phong cứng ("phá vỡ cánh tay").
+  Địa danh bị dịch nghĩa từng chữ được phát hiện và đánh dấu "Cần kiểm tra".
+
+OCR chữ dọc: ML Kit đọc chữ dọc theo hàng ngang cắt qua các cột (ký tự bị trộn). Nay hướng chữ được xác định bằng
+phân tích ảnh, ưu tiên cách tách cột; bản đọc toàn trang chỉ dùng để định vị.
+
 ## 5b. Sự cố bản 0.1.2: xóa mất hình vẽ — nguyên nhân và cách sửa (0.1.3)
 
 - **Nguyên nhân**: bong bóng hình sao hở thông với nền trắng của cả khung tranh; bộ tìm bong bóng coi cả khung tranh
@@ -132,7 +148,7 @@ khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
 
 ## 7. Kiểm thử
 
-**Đã chạy**: 59 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
+**Đã chạy**: 77 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
 tìm bong bóng trên trang giả lập, chữ của hai bong bóng không bị ghép, viền bong bóng không bị coi là chữ, thứ tự cột dọc
 phải→trái, phát hiện furigana, ký tự nhiều nét (二) đếm là một ô, xếp cột thành hàng, khoảng trắng dừng ở viền bong bóng,
 chấm điểm OCR (furigana lẫn vào bị trừ điểm), phát hiện từ lạ trong chính các câu lỗi từ ảnh thử ("buzzma", "ucking"),

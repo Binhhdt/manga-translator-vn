@@ -421,13 +421,15 @@ class PageTranslator(
     fun review(source: String, translated: String, code: String, glossary: List<GlossaryEntry>): Pair<List<String>, List<String>> {
         val missing = Glossary.missingTargets(source, translated, glossary)
         val (tr, info) = QualityChecker.translationIssues(source, translated, missing, glossary.map { it.target })
-        return (QualityChecker.ocrIssues(source, code) + tr) to info
+        // Địa danh: đo thật cho thấy bộ dịch đôi khi dịch nghĩa từng chữ (鹿児島 → "deer islands").
+        val places = if (code == "ja") Glossary.missingTargets(source, translated, Glossary.BUILTIN_JA_PLACES)
+            .map { "Địa danh $it không có trong bản dịch — có thể bị dịch nghĩa từng chữ" } else emptyList()
+        return (QualityChecker.ocrIssues(source, code) + tr + places) to info
     }
 
     private suspend fun translateRaw(code: String, text: String, glossary: List<GlossaryEntry>): TranslationTrace {
         if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
-        var prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
-        if (code == "ja") prepared = Glossary.applyBefore(prepared, Glossary.BUILTIN_JA_PLACES)
+        val prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
         val r = engine.translateDetailed(code, prepared)
         return TranslationTrace(text, prepared, r.output, Glossary.applyAfter(r.output, glossary), r.method, r.pivot, r.lostNames)
     }
