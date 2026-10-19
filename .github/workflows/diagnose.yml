@@ -11,7 +11,9 @@ permissions:
 
 jobs:
   mt-compare:
-    runs-on: ubuntu-latest
+    # Kết quả so sánh bộ dịch đã có trên nhánh diag-mt; chỉ chạy lại khi gọi tay.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
@@ -34,7 +36,7 @@ jobs:
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" diag-mt
 
   app-on-emulator:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v5
@@ -53,11 +55,12 @@ jobs:
       - name: Chạy chẩn đoán trên trình giả lập
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
+          api-level: 29
+          target: default
           arch: x86_64
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           script: bash scripts/diag/run_on_emulator.sh
       - name: Đẩy kết quả lên nhánh diag-app
         if: always()
