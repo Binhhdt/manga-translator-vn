@@ -52,22 +52,17 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Chạy chẩn đoán trên trình giả lập
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: default
-          arch: x86_64
-          disable-animations: true
-          emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
-          script: bash scripts/diag/run_on_emulator.sh
+      - name: Chạy chẩn đoán trên trình giả lập (tự dựng, có nhật ký)
+        timeout-minutes: 55
+        env:
+          API: "30"
+        run: bash scripts/diag/emulator_manual.sh
       - name: Đẩy kết quả lên nhánh diag-app
         if: always()
         run: |
-          mkdir -p /tmp/res
-          for f in diag_app.txt instrument.txt logcat.txt; do [ -f "$f" ] && cp "$f" /tmp/res/; done
-          [ -n "$(ls -A /tmp/res)" ] || echo "không có kết quả" > /tmp/res/empty.txt
+          mkdir -p res
+          [ -n "$(ls -A res)" ] || echo "không có kết quả" > res/empty.txt
+          cp -r res /tmp/res
           cd /tmp/res && git init -q && git checkout -q -b diag-app
           git config user.name "github-actions" && git config user.email "actions@github.com"
           git add -A && git commit -q -m "Kết quả chẩn đoán ứng dụng ${{ github.sha }}"

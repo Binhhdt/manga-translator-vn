@@ -76,17 +76,40 @@ class DiagnosticsTest {
                     .setTargetLanguage(TranslateLanguage.ENGLISH).build()
             )
             jaEn.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
+            val enVi = Translation.getClient(
+                TranslatorOptions.Builder().setSourceLanguage(TranslateLanguage.ENGLISH)
+                    .setTargetLanguage(TranslateLanguage.VIETNAMESE).build()
+            )
+            enVi.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             for (s in sentences) {
                 val raw = engine.translate("ja", s)
                 val prepared = TextNormalizer.prepareForTranslation(s, "ja")
                 val viaPrep = if (prepared != s) engine.translate("ja", prepared) else raw
                 val en = jaEn.translate(s).await()
+                val enThenVi = enVi.translate(en).await()
                 emit("«$s»")
-                emit("    ML Kit ja→vi (nguyên văn): «$raw»")
-                if (prepared != s) emit("    sau chuẩn hóa «$prepared» → «$viaPrep»")
-                emit("    ML Kit ja→en (tham khảo): «$en»")
+                emit("    A. ML Kit ja→vi trực tiếp (nguyên văn): «$raw»")
+                if (prepared != s) emit("       sau chuẩn hóa «$prepared» → «$viaPrep»")
+                emit("    B. ML Kit ja→en: «$en»")
+                emit("    C. ML Kit en→vi của B: «$enThenVi»   ${if (enThenVi == raw) "(= A → xác nhận dịch qua tiếng Anh)" else "(≠ A)"}")
+                // Thử các cách giữ tên riêng romaji qua bước Anh→Việt.
+                val names = vn.mangatranslate.app.core.translate.RomajiNames.find(en)
+                if (names.isNotEmpty()) {
+                    emit("       tên romaji tìm thấy: $names")
+                    val styles = listOf("X%d", "[%d]", "#%d", "QQ%d", "<%d>")
+                    for (st in styles) {
+                        var masked = en
+                        names.forEachIndexed { i, n -> masked = masked.replace(n, st.format(i + 1)) }
+                        val v = enVi.translate(masked).await()
+                        var restored = v
+                        names.forEachIndexed { i, n -> restored = restored.replace(st.format(i + 1), n) }
+                        val kept = names.all { restored.contains(it) }
+                        emit("       giữ tên kiểu '$st': «$masked» → «$v» → ${if (kept) "GIỮ ĐƯỢC" else "MẤT"} «$restored»")
+                    }
+                }
             }
             jaEn.close()
+            enVi.close()
         } catch (e: Exception) {
             emit("LỖI bộ dịch: ${e.javaClass.simpleName}: ${e.message}")
         }
