@@ -10,7 +10,9 @@ yes | sdkmanager --install "emulator" "platform-tools" "$IMG" > res/sdkmanager.t
 export ANDROID_AVD_HOME="$HOME/.android/avd"
 mkdir -p "$ANDROID_AVD_HOME"
 echo no | avdmanager create avd -n diag -k "$IMG" -d pixel_4 --force -p "$ANDROID_AVD_HOME/diag.avd" > res/avd.txt 2>&1
-{ echo "--- AVD:"; ls -la "$ANDROID_AVD_HOME"; emulator -list-avds; } >> res/avd.txt 2>&1
+# Phân vùng dữ liệu nhỏ hơn (mặc định 6 GB) để vừa đĩa máy CI.
+printf "disk.dataPartition.size=2G\nhw.ramSize=3072\n" >> "$ANDROID_AVD_HOME/diag.avd/config.ini"
+{ echo "--- AVD:"; ls -la "$ANDROID_AVD_HOME"; emulator -list-avds; df -h /; } >> res/avd.txt 2>&1
 emulator -accel-check > res/accel.txt 2>&1
 nohup emulator -avd diag -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 3072 > res/emulator.log 2>&1 &
 adb start-server

@@ -7,13 +7,14 @@ import android.content.Context
 import org.json.JSONObject
 import java.io.Closeable
 import java.io.File
+import java.nio.FloatBuffer
 import java.nio.LongBuffer
 
 /**
  * Bộ dịch Opus-MT (Helsinki-NLP, Apache-2.0) chạy OFFLINE trong ứng dụng bằng ONNX Runtime.
  * Mô hình int8 (~100 MB) nằm trong assets/mt/<cặp>/ và được chép ra bộ nhớ trong ở lần dùng đầu.
  *
- * Giải mã tham lam (greedy), không KV-cache — đúng thuật toán đã dùng để tạo reference.json khi chuyển đổi
+ * Giải mã beam search không KV-cache — đúng thuật toán đã dùng để tạo reference.json khi chuyển đổi
  * mô hình, nên kết quả Kotlin và Python phải trùng nhau (kiểm thử trên trình giả lập).
  */
 class MarianTranslator private constructor(dir: File) : Closeable {
@@ -63,46 +64,109 @@ class MarianTranslator private constructor(dir: File) : Closeable {
         return pieces to ids
     }
 
+    /**
+     * Dịch bằng beam search ([beams] nhánh; 1 = tham lam). Thuật toán giống hệt export_opus.py:
+     * log-softmax, chọn top-k mỗi nhánh (bằng điểm thì id nhỏ trước), sắp xếp ổn định theo điểm,
+     * điểm câu hoàn chỉnh = tổng log-xác suất / số token sinh ra (kể cả </s>).
+     * Các nhánh cùng độ dài nên được chạy gộp thành một lô trong một lần gọi bộ giải mã.
+     */
     @Synchronized
-    fun translate(text: String, maxLen: Int = 128): Output {
+    fun translate(text: String, beams: Int = DEFAULT_BEAMS, maxLen: Int = 128): Output {
         val (pieces, ids) = encode(text)
         val n = ids.size
-        val shape = longArrayOf(1, n.toLong())
         val mask = LongArray(n) { 1L }
-        OnnxTensor.createTensor(env, LongBuffer.wrap(ids), shape).use { inIds ->
-            OnnxTensor.createTensor(env, LongBuffer.wrap(mask), shape).use { inMask ->
+        OnnxTensor.createTensor(env, LongBuffer.wrap(ids), longArrayOf(1, n.toLong())).use { inIds ->
+            OnnxTensor.createTensor(env, LongBuffer.wrap(mask), longArrayOf(1, n.toLong())).use { inMask ->
                 encoder.run(mapOf("input_ids" to inIds, "attention_mask" to inMask)).use { encOut ->
-                    val hidden = encOut.get("last_hidden_state").get() as OnnxTensor
-                    val out = ArrayList<Long>()
-                    out += start
-                    while (out.size <= maxLen) {
-                        val next = OnnxTensor.createTensor(env, LongBuffer.wrap(out.toLongArray()), longArrayOf(1, out.size.toLong())).use { decIds ->
-                            decoder.run(
-                                mapOf("input_ids" to decIds, "encoder_hidden_states" to hidden, "encoder_attention_mask" to inMask),
-                                setOf("logits")
-                            ).use { r ->
-                                val logits = (r.get("logits").get() as OnnxTensor).floatBuffer
-                                val vocabSize = logits.capacity() / out.size
-                                val base = (out.size - 1) * vocabSize
-                                var best = -1
-                                var bestV = Float.NEGATIVE_INFINITY
-                                for (v in 0 until vocabSize) {
-                                    if (v.toLong() == pad) continue // giống bad_words_ids của Marian
-                                    val x = logits.get(base + v)
-                                    if (x > bestV) { bestV = x; best = v }
-                                }
-                                best.toLong()
+                    val hiddenTensor = encOut.get("last_hidden_state").get() as OnnxTensor
+                    val hidden = hiddenTensor.floatBuffer
+                    val hiddenSize = hidden.capacity() / n
+                    val hiddenArr = FloatArray(hidden.capacity()).also { hidden.get(it) }
+
+                    var hyps = listOf(Hyp(listOf(start), 0.0))
+                    val done = ArrayList<Pair<List<Long>, Double>>()
+                    for (step in 0 until maxLen) {
+                        val k = hyps.size
+                        val len = hyps[0].seq.size
+                        val logp = runDecoderBatch(hyps, k, len, n, hiddenSize, hiddenArr)
+                        val vocabSize = logp.size / k
+                        val cand = ArrayList<Hyp>(k * beams)
+                        for (h in 0 until k) {
+                            for (t in topK(logp, h * vocabSize, vocabSize, beams)) {
+                                cand += Hyp(hyps[h].seq + t.toLong(), hyps[h].score + logp[h * vocabSize + t])
                             }
                         }
-                        if (next == eos) break
-                        out += next
+                        val sorted = cand.sortedByDescending { it.score } // ổn định như list.sort của Python
+                        val next = ArrayList<Hyp>(beams)
+                        for (c in sorted) {
+                            if (c.seq.last() == eos) done += c.seq.subList(1, c.seq.size - 1) to c.score / (c.seq.size - 1)
+                            else next += c
+                            if (next.size == beams) break
+                        }
+                        hyps = next
+                        if (done.size >= beams || hyps.isEmpty()) break
                     }
-                    val outIds = out.drop(1)
-                    val textOut = SentencePiece.decode(outIds.map { inverse[it] ?: "" })
-                    return Output(pieces, ids, outIds, textOut)
+                    if (done.isEmpty()) hyps.forEach { done += it.seq.drop(1) to it.score / it.seq.size }
+                    val best = done.maxByOrNull { it.second }!!.first
+                    return Output(pieces, ids, best, SentencePiece.decode(best.map { inverse[it] ?: "" }))
                 }
             }
         }
+    }
+
+    private class Hyp(val seq: List<Long>, val score: Double)
+
+    /** Chạy bộ giải mã cho [k] nhánh cùng độ dài; trả về log-softmax (double) của token cuối, [k × vocab]. */
+    private fun runDecoderBatch(hyps: List<Hyp>, k: Int, len: Int, n: Int, hiddenSize: Int, hiddenArr: FloatArray): DoubleArray {
+        val decIds = LongArray(k * len)
+        hyps.forEachIndexed { i, h -> h.seq.forEachIndexed { j, t -> decIds[i * len + j] = t } }
+        val hid = FloatArray(k * n * hiddenSize)
+        for (i in 0 until k) System.arraycopy(hiddenArr, 0, hid, i * n * hiddenSize, n * hiddenSize)
+        val m = LongArray(k * n) { 1L }
+        OnnxTensor.createTensor(env, LongBuffer.wrap(decIds), longArrayOf(k.toLong(), len.toLong())).use { tIds ->
+            OnnxTensor.createTensor(env, FloatBuffer.wrap(hid), longArrayOf(k.toLong(), n.toLong(), hiddenSize.toLong())).use { tHid ->
+                OnnxTensor.createTensor(env, LongBuffer.wrap(m), longArrayOf(k.toLong(), n.toLong())).use { tMask ->
+                    decoder.run(
+                        mapOf("input_ids" to tIds, "encoder_hidden_states" to tHid, "encoder_attention_mask" to tMask),
+                        setOf("logits")
+                    ).use { r ->
+                        val logits = (r.get("logits").get() as OnnxTensor).floatBuffer
+                        val vocabSize = logits.capacity() / (k * len)
+                        val out = DoubleArray(k * vocabSize)
+                        for (i in 0 until k) {
+                            val base = (i * len + len - 1) * vocabSize
+                            var max = Double.NEGATIVE_INFINITY
+                            for (v in 0 until vocabSize) {
+                                val x = if (v.toLong() == pad) Double.NEGATIVE_INFINITY else logits.get(base + v).toDouble()
+                                out[i * vocabSize + v] = x
+                                if (x > max) max = x
+                            }
+                            var sum = 0.0
+                            for (v in 0 until vocabSize) sum += kotlin.math.exp(out[i * vocabSize + v] - max)
+                            val lse = max + kotlin.math.ln(sum)
+                            for (v in 0 until vocabSize) out[i * vocabSize + v] -= lse
+                        }
+                        return out
+                    }
+                }
+            }
+        }
+    }
+
+    /** Chỉ số của [k] giá trị lớn nhất trong đoạn [off, off+len); bằng nhau thì chỉ số nhỏ trước. */
+    private fun topK(a: DoubleArray, off: Int, len: Int, k: Int): IntArray {
+        val idx = IntArray(k) { -1 }
+        val vals = DoubleArray(k) { Double.NEGATIVE_INFINITY }
+        for (v in 0 until len) {
+            val x = a[off + v]
+            if (idx[k - 1] != -1 && x <= vals[k - 1]) continue
+            var pos = k - 1
+            while (pos > 0 && (idx[pos - 1] == -1 || x > vals[pos - 1])) pos--
+            for (q in k - 1 downTo pos + 1) { idx[q] = idx[q - 1]; vals[q] = vals[q - 1] }
+            idx[pos] = v
+            vals[pos] = x
+        }
+        return idx.filter { it >= 0 }.toIntArray()
     }
 
     override fun close() {
@@ -111,6 +175,7 @@ class MarianTranslator private constructor(dir: File) : Closeable {
     }
 
     companion object {
+        const val DEFAULT_BEAMS = 4
         private val FILES = listOf("encoder.onnx", "decoder.onnx", "source.spm", "vocab.json", "config.json")
 
         /** Có mô hình trong assets không (bản build có thể không kèm mô hình). */

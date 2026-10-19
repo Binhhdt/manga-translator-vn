@@ -45,6 +45,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Giải phóng dung lượng đĩa (trình giả lập cần ~8 GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -58,6 +62,7 @@ jobs:
           mkdir -p res
           set -o pipefail
           bash scripts/models/prepare_models.sh 2>&1 | tee res/model_export.txt
+          pip cache purge || true
       - name: Build APK + APK kiểm thử (đủ ABI cho trình giả lập)
         run: chmod +x gradlew && ./gradlew --no-daemon -PallAbis assembleDebug assembleDebugAndroidTest
       - name: Bật KVM
