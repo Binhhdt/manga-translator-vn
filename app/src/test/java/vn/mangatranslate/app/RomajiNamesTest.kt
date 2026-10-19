@@ -21,3 +21,22 @@ class RomajiNamesTest {
         assertTrue(RomajiNames.find("I'm sorry, Hey, meds.").isEmpty())
     }
 }
+
+class RomajiMaskTest {
+    @Test
+    fun maskAndRestoreRoundTrip() {
+        val (masked, names) = RomajiNames.mask("I broke my arm against the power of Kagoshima!")
+        assertEquals("I broke my arm against the power of QQ1!", masked)
+        // Kết quả ML Kit thật với kiểu QQ (đo trên trình giả lập).
+        val (vi, lost) = RomajiNames.restore("Đập vũ khí cho sức mạnh của quá QQ1- !!", names)
+        assertEquals("Đập vũ khí cho sức mạnh của quá Kagoshima- !!", vi)
+        assertTrue(lost.isEmpty())
+    }
+
+    @Test
+    fun reportsLostNames() {
+        val (_, lost) = RomajiNames.restore("Chấn thương thủ môn", listOf("Kanagawa"))
+        assertEquals(listOf("Kanagawa"), lost)
+        assertEquals("Kurosaki ổn", RomajiNames.restore("qq 1 ổn", listOf("Kurosaki")).first)
+    }
+}

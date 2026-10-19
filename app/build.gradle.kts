@@ -81,6 +81,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1") // Nhật
     implementation("com.google.mlkit:text-recognition-korean:16.0.1")   // Hàn
 
+    // Opus-MT chạy offline bằng ONNX Runtime (mô hình int8 nằm trong assets/mt, tạo bởi scripts/models)
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+
     // ML Kit dịch trên thiết bị — mô hình ~30 MB/ngôn ngữ, tải một lần rồi dùng offline
     implementation("com.google.mlkit:translate:17.0.3")
 

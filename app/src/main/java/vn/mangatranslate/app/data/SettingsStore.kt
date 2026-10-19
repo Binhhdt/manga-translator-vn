@@ -22,7 +22,9 @@ data class AppSettings(
     val cleanBubbles: Boolean = false,
     val glossaryText: String = DEFAULT_GLOSSARY,
     val hideUnverified: Boolean = true,
-    val debugMask: Boolean = false
+    val debugMask: Boolean = false,
+    /** Tiếng Nhật: dùng Opus-MT Nhật→Anh trong ứng dụng (mặc định) hay chỉ ML Kit. */
+    val jaUseOpus: Boolean = true
 ) {
     fun toRenderStyle() = RenderStyle(
         textColorMode = textColorMode,
@@ -67,7 +69,8 @@ class SettingsStore(context: Context) {
             cleanBubbles = prefs.getBoolean("cleanBubblesV2", d.cleanBubbles),
             glossaryText = prefs.getString("glossary", null) ?: d.glossaryText,
             hideUnverified = prefs.getBoolean("hideUnverified", d.hideUnverified),
-            debugMask = prefs.getBoolean("debugMask", d.debugMask)
+            debugMask = prefs.getBoolean("debugMask", d.debugMask),
+            jaUseOpus = prefs.getBoolean("jaUseOpus", d.jaUseOpus)
         )
     }
 
@@ -86,6 +89,7 @@ class SettingsStore(context: Context) {
             .putString("glossary", s.glossaryText)
             .putBoolean("hideUnverified", s.hideUnverified)
             .putBoolean("debugMask", s.debugMask)
+            .putBoolean("jaUseOpus", s.jaUseOpus)
             .apply()
     }
 

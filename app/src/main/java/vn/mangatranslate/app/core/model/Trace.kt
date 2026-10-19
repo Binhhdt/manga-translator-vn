@@ -45,7 +45,9 @@ data class RegionTrace(
     /** Kết quả THÔ của bộ dịch, chưa sửa gì. */
     val mtRaw: String = "",
     /** Tên bộ dịch đã dùng. */
-    val engine: String = ""
+    val engine: String = "",
+    /** Câu tiếng Anh trung gian (nếu dịch qua tiếng Anh). */
+    val mtPivot: String? = null
 ) {
     override fun equals(other: Any?): Boolean = this === other
     override fun hashCode(): Int = System.identityHashCode(this)
@@ -60,5 +62,12 @@ data class TranslationTrace(
     val engineOutput: String,
     /** Sau khi áp bảng thuật ngữ (chưa đổi xưng hô). */
     val afterGlossary: String,
-    val engine: String
+    val engine: String,
+    /** Câu tiếng Anh trung gian (nếu có). */
+    val pivot: String? = null,
+    /** Tên riêng không giữ được qua bước Anh→Việt. */
+    val lostNames: List<String> = emptyList(),
+    /** Kết quả khi chỉ dùng ML Kit (để so sánh, màn hình kiểm tra). */
+    val mlkitOnly: String? = null,
+    val mlkitOnlyPivot: String? = null
 )

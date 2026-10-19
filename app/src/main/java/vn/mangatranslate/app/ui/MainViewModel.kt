@@ -38,7 +38,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val imageLoader = ImageLoader(application)
     private val ocr = OCRProcessor()
-    private val translationEngine = TranslationEngine()
+    private val translationEngine = TranslationEngine(application)
     private val detector = TextRegionDetector()
     private val pageTranslator = PageTranslator(ocr, detector, translationEngine)
     private val renderer = VietnameseTextRenderer()
@@ -47,6 +47,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _state = MutableStateFlow(UiState(settings = settingsStore.load()))
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    init {
+        applyEngineMode(_state.value.settings)
+    }
+
+    private fun applyEngineMode(s: AppSettings) {
+        translationEngine.jaMode = if (s.jaUseOpus) TranslationEngine.JaMode.OPUS_PIVOT else TranslationEngine.JaMode.MLKIT_ONLY
+    }
+
+    val opusAvailable: Boolean get() = translationEngine.opusAvailable
 
     /** Ảnh gốc của trang hiện tại (độ phân giải gốc). Không bao giờ bị vẽ đè. */
     private var original: Bitmap? = null
@@ -349,7 +359,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         translatedText = translated, userEdited = false,
                         reviewNotes = rev, infoNotes = inf, sourceLang = lang.code ?: r.sourceLang,
                         confirmed = false,
-                        trace = r.trace?.copy(mtInput = tr.engineInput, mtRaw = tr.engineOutput, engine = tr.engine)
+                        trace = r.trace?.copy(mtInput = tr.engineInput, mtRaw = tr.engineOutput, engine = tr.engine, mtPivot = tr.pivot)
                     )
                 }
             } catch (e: CancellationException) {
@@ -464,6 +474,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val new = transform(old)
         if (new == old) return
         settingsStore.save(new)
+        applyEngineMode(new)
         val pronounChanged = new.pronounStyle != old.pronounStyle
         if (pronounChanged) {
             // Áp dụng xưng hô mới cho mọi trang đã dịch, trừ câu người dùng đã tự sửa.
@@ -579,7 +590,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val tr = withContext(Dispatchers.Default) {
                     pageTranslator.translateText(
                         text.trim(), s.mtTestLang, if (s.mtTestNormalize) s.settings.glossary() else emptyList(),
-                        { stage -> _state.update { it.copy(busy = stage) } }, normalize = s.mtTestNormalize
+                        { stage -> _state.update { it.copy(busy = stage) } }, normalize = s.mtTestNormalize, compareMlKit = true
                     )
                 }
                 _state.update { it.copy(busy = null, mtTestResult = tr) }

@@ -161,7 +161,8 @@ class PageTranslator(
             val raw = tr?.afterGlossary ?: ""
             val translated = finalize(raw, pronoun)
             val (rev0, inf) = review(d.text, translated, code, glossary)
-            val rev = listOfNotNull(translateError) + rev0
+            val lostNote = tr?.lostNames?.takeIf { it.isNotEmpty() }?.let { "Tên riêng bị mất khi dịch Anh→Việt: ${it.joinToString(", ")}" }
+            val rev = listOfNotNull(translateError, lostNote) + rev0
             regions += TextRegion(
                 id = i + 1,
                 box = d.box,
@@ -176,7 +177,9 @@ class PageTranslator(
                 infoNotes = inf,
                 ocrMethod = d.method,
                 sourceLang = code,
-                trace = d.trace.copy(mtInput = tr?.engineInput ?: "", mtRaw = tr?.engineOutput ?: "", engine = engine.name)
+                trace = d.trace.copy(
+                    mtInput = tr?.engineInput ?: "", mtRaw = tr?.engineOutput ?: "", engine = tr?.engine ?: engine.name, mtPivot = tr?.pivot
+                )
             )
         }
         return PageResult(lang, regions, skipped)
@@ -376,7 +379,7 @@ class PageTranslator(
                 sourceLang = code,
                 trace = RegionTrace(
                     "Khoanh tay", l, t, crop.width, crop.height, cropPng, emptyList(), outcome?.attempts ?: emptyList(),
-                    outcome?.layoutInfo ?: "", text, tr?.engineInput ?: "", tr?.engineOutput ?: "", engine.name
+                    outcome?.layoutInfo ?: "", text, tr?.engineInput ?: "", tr?.engineOutput ?: "", tr?.engine ?: engine.name, tr?.pivot
                 )
             )
             return ManualResult(lang, region)
@@ -396,16 +399,19 @@ class PageTranslator(
         lang: SourceLanguage,
         glossary: List<GlossaryEntry>,
         onStage: (String) -> Unit,
-        normalize: Boolean = true
+        normalize: Boolean = true,
+        compareMlKit: Boolean = false
     ): TranslationTrace {
         val code = lang.code ?: throw UserFacingException("Chưa chọn ngôn ngữ nguồn.")
         if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
         prepareModel(lang, onStage)
-        if (!normalize) {
-            val out = engine.translate(code, text)
-            return TranslationTrace(text, text, out, out, engine.name)
-        }
-        return translateRaw(code, text, glossary)
+        val base = if (!normalize) {
+            val r = engine.translateDetailed(code, text)
+            TranslationTrace(text, text, r.output, r.output, r.method, r.pivot, r.lostNames)
+        } else translateRaw(code, text, glossary)
+        if (!compareMlKit || code != "ja" || engine.name == TranslationEngine.NAME_MLKIT) return base
+        val alt = engine.translateDetailed(code, base.engineInput, TranslationEngine.JaMode.MLKIT_ONLY)
+        return base.copy(mlkitOnly = alt.output, mlkitOnlyPivot = alt.pivot)
     }
 
     fun finalize(raw: String, pronoun: PronounStyle): String =
@@ -421,8 +427,8 @@ class PageTranslator(
     private suspend fun translateRaw(code: String, text: String, glossary: List<GlossaryEntry>): TranslationTrace {
         if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
         val prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
-        val out = engine.translate(code, prepared)
-        return TranslationTrace(text, prepared, out, Glossary.applyAfter(out, glossary), engine.name)
+        val r = engine.translateDetailed(code, prepared)
+        return TranslationTrace(text, prepared, r.output, Glossary.applyAfter(r.output, glossary), r.method, r.pivot, r.lostNames)
     }
 
     /** Đoán ngôn ngữ dựa trên loại ký tự đọc được (Kana → Nhật, Hangul → Hàn, chỉ Hán → Trung, Latin → Anh). */

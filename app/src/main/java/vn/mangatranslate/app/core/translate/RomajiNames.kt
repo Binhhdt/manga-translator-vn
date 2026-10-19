@@ -17,6 +17,28 @@ object RomajiNames {
 
     fun isRomaji(word: String): Boolean = word.length >= 3 && SYLLABLES.matches(word)
 
+    /**
+     * Thay tên bằng dấu "QQ1", "QQ2"… trước khi dịch Anh → Việt.
+     * Chọn kiểu "QQn" vì đo trên ML Kit thật (trang 006): giữ được tên 3/3 lần và giữ đúng chữ hoa;
+     * kiểu "Xn" bị viết thường, "#n" bị tách thành "# 1".
+     */
+    fun mask(english: String, names: List<String> = find(english)): Pair<String, List<String>> {
+        var out = english
+        names.forEachIndexed { i, n -> out = Regex("(?<!\\p{L})" + Regex.escape(n) + "(?!\\p{L})").replace(out, "QQ${i + 1}") }
+        return out to names
+    }
+
+    /** Trả tên về chỗ dấu "QQn" (chấp nhận "qq1", "QQ 1"). Trả về (văn bản, các tên bị mất). */
+    fun restore(translated: String, names: List<String>): Pair<String, List<String>> {
+        var out = translated
+        val lost = ArrayList<String>()
+        names.forEachIndexed { i, n ->
+            val re = Regex("(?i)qq\\s?${i + 1}(?!\\d)")
+            if (re.containsMatchIn(out)) out = re.replace(out, Regex.escapeReplacement(n)) else lost += n
+        }
+        return out to lost
+    }
+
     /** Các tên tìm được, theo thứ tự xuất hiện, không trùng. */
     fun find(english: String): List<String> {
         val out = LinkedHashSet<String>()

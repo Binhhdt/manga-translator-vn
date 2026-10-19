@@ -92,15 +92,21 @@ class RegionOcr(
             )
         }
 
+        // Hướng chữ: với Nhật/Trung xác định bằng PHÂN TÍCH ẢNH. Không dựa vào dòng ML Kit trả về — với chữ dọc,
+        // ML Kit trả về các "dòng" nằm ngang cắt qua nhiều cột (đã đo trên trang 006).
+        val verticalByImage = layout != null && CandidatePolicy.isVerticalByImage(
+            layout.mainColumns.map { Triple(it.width, it.height, it.cells.size) }
+        )
+        val vertical = if (cjk && layout != null) verticalByImage else (directVertical || (direct.kept.isEmpty() && cjk))
+
         // C — tách cột dọc, xếp lại thành hàng ngang.
-        val vertical = directVertical || (direct.kept.isEmpty() && cjk)
         val useColumns = layout != null && vertical && layout.mainColumns.any { it.cells.size >= 2 }
         if (useColumns && layout != null) {
             composeAndRead(gray, layout, script, "$tag/$METHOD_COLUMNS")?.let { c -> candidates += c }
         }
 
         val expected = if (useColumns && layout != null) layout.expectedChars else null
-        var best = pick(candidates, langCode, expected)
+        var best = pick(candidates, langCode, expected, vertical)
 
         // B — ảnh đen trắng, chỉ khi kết quả còn yếu.
         val bestStats = best?.let { OcrCandidateScorer.stats(it.text, langCode) }
@@ -116,7 +122,7 @@ class RegionOcr(
                         METHOD_BINARY, detector.buildText(r.kept, v), v, BoxF.unionOf(r.kept.map { it.box }),
                         r.trace, bw.width, bw.height
                     )
-                    best = pick(candidates, langCode, expected)
+                    best = pick(candidates, langCode, expected, vertical)
                 }
             } finally {
                 bw.recycle()
@@ -155,17 +161,10 @@ class RegionOcr(
             if (used) "" else " — không dùng cách tách cột"
     }
 
-    private fun pick(cands: List<Candidate>, lang: String, expected: Int?): Candidate? {
-        var best: Candidate? = null
-        var bestScore = Float.NEGATIVE_INFINITY
-        for (c in cands) {
-            val s = OcrCandidateScorer.score(c.text, lang, expected)
-            if (s > bestScore) { // giữ phương án đứng trước khi bằng điểm
-                best = c
-                bestScore = s
-            }
-        }
-        return if (bestScore == Float.NEGATIVE_INFINITY) null else best
+    private fun pick(cands: List<Candidate>, lang: String, expected: Int?, vertical: Boolean): Candidate? {
+        val chosen = CandidatePolicy.choose(cands.map { CandidatePolicy.Option(it.method, it.text) }, lang, expected, vertical)
+            ?: return null
+        return cands.firstOrNull { it.method == chosen.method && it.text == chosen.text }
     }
 
     /** Một cách đọc lỗi (ví dụ ảnh bất thường) chỉ làm mất cách đọc đó, không làm hỏng cả vùng. */

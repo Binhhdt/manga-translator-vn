@@ -18,6 +18,7 @@ import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.ocr.OCRProcessor
 import vn.mangatranslate.app.core.ocr.TextRegionDetector
 import vn.mangatranslate.app.core.pipeline.PageTranslator
+import vn.mangatranslate.app.core.translate.MarianTranslator
 import vn.mangatranslate.app.core.translate.TranslationEngine
 import vn.mangatranslate.app.core.util.TextNormalizer
 import java.io.File
@@ -63,8 +64,42 @@ class DiagnosticsTest {
         file = File(inst.targetContext.filesDir, "diag.txt")
         emit("##### CHẨN ĐOÁN Manga Translator VN #####")
 
+        // ---------- 0. Opus-MT trong ứng dụng: đối chiếu với tham chiếu Python ----------
+        emit("== 0. Opus-MT Nhật→Anh (Kotlin + ONNX Runtime) so với tham chiếu Python ==")
+        try {
+            val ctx = inst.targetContext
+            emit("Có mô hình trong APK: ${MarianTranslator.available(ctx, TranslationEngine.OPUS_JA_EN)}")
+            val t0 = System.currentTimeMillis()
+            val marian = MarianTranslator.fromAssets(ctx, TranslationEngine.OPUS_JA_EN)
+            emit("Nạp mô hình: ${System.currentTimeMillis() - t0} ms")
+            val ref = org.json.JSONObject(ctx.assets.open("mt/ja-en/reference.json").bufferedReader().readText())
+            val cases = ref.getJSONArray("cases")
+            var idsOk = 0
+            var outOk = 0
+            for (i in 0 until cases.length()) {
+                val c = cases.getJSONObject(i)
+                val src = c.getString("source")
+                val refIds = (0 until c.getJSONArray("ids").length()).map { c.getJSONArray("ids").getLong(it) }
+                val refText = c.getString("translation")
+                val t1 = System.currentTimeMillis()
+                val o = marian.translate(src)
+                val ms = System.currentTimeMillis() - t1
+                val idMatch = o.inputIds.toList() == refIds
+                val outMatch = o.text == refText
+                if (idMatch) idsOk++
+                if (outMatch) outOk++
+                emit("«$src» → «${o.text}» (${ms} ms) token ${if (idMatch) "KHỚP" else "KHÁC ${o.pieces} vs ${c.getJSONArray("pieces")}"}, bản dịch ${if (outMatch) "KHỚP" else "KHÁC (Python: «$refText»)"}")
+            }
+            emit("Tổng: token khớp $idsOk/${cases.length()}, bản dịch khớp $outOk/${cases.length()}")
+            marian.close()
+        } catch (e: Throwable) {
+            emit("LỖI Opus-MT: ${e.javaClass.simpleName}: ${e.message}")
+            emit(Log.getStackTraceString(e))
+        }
+        emit()
+
         // ---------- 1. Bộ dịch độc lập với OCR ----------
-        val engine = TranslationEngine()
+        val engine = TranslationEngine(inst.targetContext)
         emit("== 1. Bộ dịch: ${engine.name} ==")
         try {
             val t0 = System.currentTimeMillis()
@@ -81,13 +116,21 @@ class DiagnosticsTest {
                     .setTargetLanguage(TranslateLanguage.VIETNAMESE).build()
             )
             enVi.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
+            val translatorDirect = Translation.getClient(
+                TranslatorOptions.Builder().setSourceLanguage(TranslateLanguage.JAPANESE)
+                    .setTargetLanguage(TranslateLanguage.VIETNAMESE).build()
+            )
+            translatorDirect.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             for (s in sentences) {
-                val raw = engine.translate("ja", s)
+                val prepNew = TextNormalizer.prepareForTranslation(s, "ja")
+                val newR = engine.translateDetailed("ja", prepNew, TranslationEngine.JaMode.OPUS_PIVOT)
+                emit("«$s»")
+                emit("    MỚI (${newR.method}): Anh «${newR.pivot}» → «${newR.output}»${if (newR.lostNames.isNotEmpty()) " mất tên ${newR.lostNames}" else ""}")
+                val raw = translatorDirect.translate(s).await()
                 val prepared = TextNormalizer.prepareForTranslation(s, "ja")
-                val viaPrep = if (prepared != s) engine.translate("ja", prepared) else raw
+                val viaPrep = if (prepared != s) translatorDirect.translate(prepared).await() else raw
                 val en = jaEn.translate(s).await()
                 val enThenVi = enVi.translate(en).await()
-                emit("«$s»")
                 emit("    A. ML Kit ja→vi trực tiếp (nguyên văn): «$raw»")
                 if (prepared != s) emit("       sau chuẩn hóa «$prepared» → «$viaPrep»")
                 emit("    B. ML Kit ja→en: «$en»")
@@ -110,6 +153,7 @@ class DiagnosticsTest {
             }
             jaEn.close()
             enVi.close()
+            translatorDirect.close()
         } catch (e: Exception) {
             emit("LỖI bộ dịch: ${e.javaClass.simpleName}: ${e.message}")
         }
@@ -119,6 +163,7 @@ class DiagnosticsTest {
         emit("== 2. Quy trình đầy đủ trên trang 006 (OCR + ghép + dịch) ==")
         try {
             val bmp = inst.context.assets.open("page006.png").use { BitmapFactory.decodeStream(it) }
+            emit("Bộ dịch: ${engine.name}")
             val pt = PageTranslator(OCRProcessor(), TextRegionDetector(), engine)
             val t0 = System.currentTimeMillis()
             val res = pt.translatePage(bmp, SourceLanguage.JAPANESE, PronounStyle.KEEP, emptyList()) { }

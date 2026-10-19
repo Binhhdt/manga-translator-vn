@@ -85,6 +85,16 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
             Hint("“Tự động” đoán theo loại chữ trên trang (Kana → Nhật, Hangul → Hàn, chỉ chữ Hán → Trung). Nếu đoán sai, hãy chọn tay.")
 
+            Section("Bộ dịch tiếng Nhật")
+            RadioRow("Opus-MT Nhật→Anh (trong ứng dụng) + ML Kit Anh→Việt — khuyên dùng", s.jaUseOpus) {
+                vm.updateSettings { it.copy(jaUseOpus = true) }
+            }
+            RadioRow("Chỉ ML Kit (Nhật→Anh→Việt)", !s.jaUseOpus) { vm.updateSettings { it.copy(jaUseOpus = false) } }
+            Hint(
+                if (vm.opusAvailable) "Đo trên trang thử: bước Nhật→Anh của ML Kit dịch sai nhiều (黒崎→\"Blacklord\", 腕→\"Arms\"→\"vũ khí\"); Opus-MT đọc đúng hơn. Tên riêng dạng romaji được giữ nguyên qua bước Anh→Việt. Có thể so sánh hai bộ dịch trong “Kiểm tra bộ dịch”."
+                else "Bản cài đặt này không kèm mô hình Opus-MT — đang dùng ML Kit."
+            )
+
             Section("Xưng hô trong bản dịch")
             PronounStyle.entries.forEach { p ->
                 RadioRow(p.label, s.pronounStyle == p) { vm.updateSettings { it.copy(pronounStyle = p) } }

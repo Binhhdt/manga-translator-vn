@@ -12,3 +12,4 @@
 *.aab
 *.keystore
 !debug.keystore
+app/src/main/assets/mt/

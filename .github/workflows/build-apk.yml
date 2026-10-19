@@ -27,6 +27,16 @@ jobs:
       - name: Cài Gradle (có cache)
         uses: gradle/actions/setup-gradle@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Bộ nhớ đệm mô hình Opus-MT
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/mt
+          key: opus-ja-en-${{ hashFiles('scripts/models/**') }}
+      - name: Tạo mô hình Opus-MT Nhật→Anh (ONNX int8)
+        run: bash scripts/models/prepare_models.sh
       - name: Cấp quyền chạy gradlew
         run: chmod +x gradlew
 

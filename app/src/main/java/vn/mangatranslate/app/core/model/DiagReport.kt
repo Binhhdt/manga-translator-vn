@@ -45,6 +45,7 @@ object DiagReport {
         if (t != null) {
             appendLine("   Bộ dịch: ${t.engine}")
             appendLine("5. Gửi vào bộ dịch: «${t.mtInput}»")
+            t.mtPivot?.let { appendLine("5b. Câu tiếng Anh trung gian: «$it»") }
             appendLine("6. Bộ dịch trả về (thô): «${t.mtRaw}»")
         }
         appendLine("7. Văn bản cuối: «${r.translatedText}» — $drawn")

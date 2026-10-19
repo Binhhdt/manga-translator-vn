@@ -110,9 +110,16 @@ fun MtTestScreen(state: UiState, vm: MainViewModel) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Step("1. Văn bản nhập", r.source)
                                 Step("2. Gửi vào bộ dịch", r.engineInput)
+                                r.pivot?.let { Step("2b. Câu tiếng Anh trung gian", it) }
                                 Step("3. Bộ dịch trả về (thô)", r.engineOutput)
                                 Step("4. Sau bảng thuật ngữ", r.afterGlossary)
                                 Text("Bộ dịch: ${r.engine}", style = MaterialTheme.typography.bodySmall)
+                                if (r.lostNames.isNotEmpty()) Text("Tên bị mất: ${r.lostNames.joinToString()}", color = MaterialTheme.colorScheme.error)
+                                r.mlkitOnly?.let {
+                                    Text("So sánh — chỉ dùng ML Kit:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                                    r.mlkitOnlyPivot?.let { p -> Text("Anh: «$p»", style = MaterialTheme.typography.bodySmall) }
+                                    Text("«$it»", style = MaterialTheme.typography.bodyLarge)
+                                }
                             }
                         }
                     }

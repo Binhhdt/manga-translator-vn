@@ -45,6 +45,16 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Bộ nhớ đệm mô hình Opus-MT
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/assets/mt
+          key: opus-ja-en-${{ hashFiles('scripts/models/**') }}
+      - name: Tạo mô hình Opus-MT Nhật→Anh (ONNX int8)
+        run: bash scripts/models/prepare_models.sh
       - name: Build APK + APK kiểm thử (đủ ABI cho trình giả lập)
         run: chmod +x gradlew && ./gradlew --no-daemon -PallAbis assembleDebug assembleDebugAndroidTest
       - name: Bật KVM
