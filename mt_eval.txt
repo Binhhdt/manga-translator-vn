@@ -1,0 +1,110 @@
+##### SO SÁNH BỘ DỊCH OFFLINE Nhật → Việt (CPU, CI) #####
+torch 2.14.1+cpu
+Tìm 'ja-vi' trên HF: ['jaranohaal/vit-base-violence-detection', 'rinna/japanese-clip-vit-b-16', 'NovaSearch/jasper_en_vision_language_v1', 'vicgalle/Configurable-Janus-7B', 'jamessyx/pathgenclip-vit-large-patch14-hf', 'RichardErkhov/vicgalle_-_Configurable-Janus-7B-gguf', 'mradermacher/Javi0.3-2B-i1-GGUF', 'jarrelscy/GLM-5.3-Vision-NestQuant-2-4bit', 'mradermacher/Javi0.3-4B-i1-GGUF', 'Jakevin/clef-flash-mixed-vision-GGUF', 'videosdk-live/Namo-Turn-Detector-v1-Japanese', 'mradermacher/Javi0.3-2B-GGUF', 'mradermacher/Javi0.3-4B-GGUF', 'javirandor/passgpt-10characters', 'javimosch/mtlm-7m-router3s384', 'jarrelscy/GLM-5.3-Vision-NVFP4-ARVQ-v2-hybrid', 'Dev-Jahn/vjepa2.1-vitl-fpc64-384', 'Helsinki-NLP/opus-mt-ja-vi', 'RichardErkhov/jaeyong2_-_Qwen2.5-0.5B-Instruct-VietMagpie-Preview-gguf', 'rinna/japanese-cloob-vit-b-16', 'featherless-ai-quants/vicgalle-Configurable-Janus-7B-GGUF', 'mradermacher/Llama_3.x_70b_JaviTeaz_0.1-i1-GGUF', 'sonoisa/clip-vit-b-32-japanese-v1', 'RichardErkhov/jaeyong2_-_Qwen2.5-1.5B-Instruct-Viet-SFT-gguf', 'recruit-jp/japanese-clip-vit-b-32-roberta-base', 'jamesburton/Phi-4-reasoning-vision-15B-GGUF', 'jackyqs/vits-aishell3-175-chinese', 'Lycoris53/Vits-TTS-Japanese-Only-Amitaro', 'jvr0x/Javi0.2-4B-GGUF', 'jvr0x/Javi0.3-4B-GGUF', 'jvr0x/Javi0.3-2B-GGUF', 'MrMofer/Qwen3-27B-OBLITERATED-JANG-VISION-MLX-4bit', 'featherless-ai-quants/jaeyong2-Qwen2.5-0.5B-Instruct-Viet-SFT-GGUF', 'Jakevin/clef-flash-ternary-vision-mlx', 'stabilityai/japanese-stable-clip-vit-l-16', 'Geotrend/bert-base-en-fr-zh-ja-vi-cased', 'janjibDEV/vit-plantnet300k', 'vitouphy/wav2vec2-xls-r-300m-japanese', 'Geotrend/bert-base-en-fr-da-ja-vi-cased', 'jaypratap/vit-pretraining-2024_04_02-atelectasis-classifier']
+Tìm 'jpn-vie' trên HF: []
+Tìm 'japanese-vietnamese' trên HF: []
+Tệp trong Xenova/opus-mt-ja-vi: 
+Tệp trong Helsinki-NLP/opus-mt-ja-vi: .gitattributes (0.0 MB), README.md (0.0 MB), config.json (0.0 MB), generation_config.json (0.0 MB), metadata.json (0.0 MB), pytorch_model.bin (311.1 MB), source.spm (0.8 MB), target.spm (0.8 MB), tf_model.h5 (311.6 MB), tokenizer_config.json (0.0 MB), vocab.json (1.7 MB)
+
+=== Opus-MT Nhật→Việt TRỰC TIẾP [Helsinki-NLP/opus-mt-ja-vi] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 311 MB
+Nạp mô hình: 13.8s
+«さわらないで» → «Đừng có chạm vào tôi.»  (0.89s)
+«黒崎» → «Li - ban»  (0.20s)
+«神奈川 GK 負傷!!» → «Bị thương!»  (0.28s)
+«腕を骨折» → «Bị gãy tay.»  (0.28s)
+«大丈夫かよ» → «Cô không sao chứ?»  (0.28s)
+«こんなブザマはさらさなかったのによ» → «Em chưa bao giờ kể cho anh nghe chuyện gì đã xảy ra với em cả.»  (0.79s)
+«黒崎おいっ大丈夫かよォ……» → «Anh không sao chứ?»  (0.48s)
+«さわらないで――» → «Đừng khóc.»  (0.28s)
+«オーイ救急班―» → «Xin chào, đội y tế.»  (0.35s)
+«こりゃみごとに折れてるな――……» → «Tôi không biết nữa.»  (0.33s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Tôi bị gãy tay vì sức mạnh của một con nai sừng tấm!»  (0.63s)
+«残念だなァ……» → «Tôi rất tiếc...»  (0.24s)
+«いててて……クソ受け身がとれてたら……» → «Tôi đã ở đây... và... nếu có ai đó bị thương nặng...»  (0.68s)
+
+=== Opus-MT QUA TIẾNG ANH (mô phỏng cách dịch trung gian) [Helsinki-NLP/opus-mt-ja-en] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 303 MB
+Nạp mô hình: 15.0s
+«さわらないで» → «Đừng chạm vào tôi.   [qua tiếng Anh: «Don't touch me.»]»  (0.62s)
+«黒崎» → «Nợ máu.   [qua tiếng Anh: «Kurosaki.»]»  (0.46s)
+«神奈川 GK 負傷!!» → «Kiraw, GK, bình tĩnh!   [qua tiếng Anh: «Kanagawa, GK, hurt!»]»  (0.87s)
+«腕を骨折» → «Tôi bị gãy tay.   [qua tiếng Anh: «I broke my arm.»]»  (0.61s)
+«大丈夫かよ» → «Anh ổn chứ?   [qua tiếng Anh: «Are you okay?»]»  (0.50s)
+«こんなブザマはさらさなかったのによ» → «Tôi không làm anh thất vọng.   [qua tiếng Anh: «I didn't bring this shit down on you.»]»  (0.94s)
+«黒崎おいっ大丈夫かよォ……» → «Anh đang làm gì vậy?   [qua tiếng Anh: «What are you doing?»]»  (0.63s)
+«さわらないで――» → «Đừng chạm vào tôi.   [qua tiếng Anh: «Don't touch me.»]»  (0.58s)
+«オーイ救急班―» → «Này, mấy cái túi.   [qua tiếng Anh: «Hey, meds.»]»  (0.64s)
+«こりゃみごとに折れてるな――……» → «Tất cả đã bị chia tay.   [qua tiếng Anh: «It's all broken up.»]»  (0.69s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Tôi đã bẻ gãy tay mình chống lại sức mạnh của Kago!   [qua tiếng Anh: «I broke my arm against the power of Kagoshima!»]»  (1.13s)
+«残念だなァ……» → «Tôi xin lỗi.   [qua tiếng Anh: «I'm sorry.»]»  (0.54s)
+«いててて……クソ受け身がとれてたら……» → «Nếu anh ở đây... nếu anh đã làm tình...   [qua tiếng Anh: «If you'd been here... if you'd been fucking...»]»  (1.21s)
+
+=== M2M100 418M (MIT) [facebook/m2m100_418M] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 1936 MB
+Nạp mô hình: 17.5s
+«さわらないで» → «Đừng lo lắng»  (1.14s)
+«黒崎» → «Nicaragua»  (1.10s)
+«神奈川 GK 負傷!!» → «Thượng Đế GK bị thương!»  (1.97s)
+«腕を骨折» → «cánh tay bị hỏng»  (1.27s)
+«大丈夫かよ» → «Có ổn không»  (1.10s)
+«こんなブザマはさらさなかったのによ» → «Chẳng có gì đáng ngạc nhiên khi tôi không có một cái bút như thế này.»  (3.86s)
+«黒崎おいっ大丈夫かよォ……» → «Nirvana có ổn không ạ...»  (2.02s)
+«さわらないで――» → «Đừng lo lắng -»  (1.27s)
+«オーイ救急班―» → «Khẩn cấp -»  (1.47s)
+«こりゃみごとに折れてるな――……» → «Đừng phá vỡ tất cả mọi thứ...»  (2.16s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Đã có quá nhiều lực lượng của Kazakhstan đã phá vỡ cánh tay của mình!»  (3.73s)
+«残念だなァ……» → «Đáng tiếc là...»  (1.64s)
+«いててて……クソ受け身がとれてたら……» → «Nếu... nếu... nếu... nếu... nếu... nếu... nếu... nếu...»  (3.22s)
+
+=== NLLB-200 distilled 600M (CC-BY-NC) [facebook/nllb-200-distilled-600M] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 2460 MB
+Nạp mô hình: 21.2s
+«さわらないで» → «Đừng làm thế.»  (2.21s)
+«黒崎» → «Nurazaki.»  (1.93s)
+«神奈川 GK 負傷!!» → «G.K. Nanai, bị thương!»  (3.17s)
+«腕を骨折» → «Bàn tay bị gãy.»  (2.44s)
+«大丈夫かよ» → «Anh ổn chứ?»  (1.96s)
+«こんなブザマはさらさなかったのによ» → «Tôi cảm thấy rất vui vì tôi đã không cướp được một cái bướm như thế này.»  (5.78s)
+«黒崎おいっ大丈夫かよォ……» → «Này, cậu được chứ? Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này. Này.»  (23.13s)
+«さわらないで――» → «Đừng làm việc với tôi.»  (2.44s)
+«オーイ救急班―» → «Đội cứu hộ.»  (2.00s)
+«こりゃみごとに折れてるな――……» → «Tôi không muốn cô ấy làm gì cả.»  (2.99s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Tôi đã phá vỡ cánh tay của tôi với sức mạnh của đảo鹿児島.»  (5.37s)
+«残念だなァ……» → «Tôi rất tiếc.»  (2.01s)
+«いててて……クソ受け身がとれてたら……» → «Đợi đã... nếu anh ta có một con người chết tiệt...»  (4.94s)
+
+=== Qwen2.5 0.5B Instruct (LLM nhỏ) [Qwen/Qwen2.5-0.5B-Instruct] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 988 MB
+Nạp mô hình: 10.3s
+«さわらないで» → «sawan ra»  (0.95s)
+«黒崎» → «Khoi dai»  (0.92s)
+«神奈川 GK 負傷!!» → «Ngày hôm nay, tôi không thể tham gia vào trận đấu của GK神奈川. Tôi cảm thấy rất buồn và lo lắng.»  (3.73s)
+«腕を骨折» → «tay boan bao chi»  (1.22s)
+«大丈夫かよ» → «Dadu muon ky?»  (1.24s)
+«こんなブザマはさらさなかったのによ» → «những bạch ma này không ưa chuộng»  (1.72s)
+«黒崎おいっ大丈夫かよォ……» → «Bắc Quang Yêu, à…»  (1.54s)
+«さわらないで――» → «다시다리»  (0.95s)
+«オーイ救急班―» → «Ôiíííííííííííííííííííííííííííííííííííííííííííííííííííííííííííííí»  (7.55s)
+«こりゃみごとに折れてるな――……» → «Có phải bạn đang bị vỡ từng lần?»  (1.79s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Rất nhiều sức mạnh của tỉnh鹿児島 bị thương vong – !!»  (2.35s)
+«残念だなァ……» → «Xa cay da...»  (1.13s)
+«いててて……クソ受け身がとれてたら……» → «Được rồi……Có thể bị đánh giá cao hơn……»  (2.04s)
+
+=== Qwen2.5 1.5B Instruct (LLM nhỏ) [Qwen/Qwen2.5-1.5B-Instruct] ===
+Dung lượng trọng số (fp32/fp16 trên HF): 3087 MB
+Nạp mô hình: 45.7s
+«さわらないで» → «Bé, đừng làm vậy.»  (38.92s)
+«黒崎» → «Kurokaki»  (2.87s)
+«神奈川 GK 負傷!!» → «Xử lý thương tích của Gekkou Kanon!»  (5.59s)
+«腕を骨折» → «tay tôi bị gãy»  (3.61s)
+«大丈夫かよ» → «Anh ổn không?»  (3.03s)
+«こんなブザマはさらさなかったのによ» → «Như vậy, tôi chưa từng gặp phải điều này.»  (5.29s)
+«黒崎おいっ大丈夫かよォ……» → «Ai o iu daitotu ka yo...»  (5.04s)
+«さわらないで――» → «Bỏ qua tôi, –-»  (3.64s)
+«オーイ救急班―» → «Ôi, cứu thương -»  (3.38s)
+«こりゃみごとに折れてるな――……» → «Thì ra nó đã bị vỡ từng viên rồi ạ – ……»  (6.44s)
+«あまりの鹿児島のパワーに腕を骨折――!!» → «Tuyệt vời quá sức của Kyushu đã khiến tay tôi gãy!»  (7.52s)
+«残念だなァ……» → «Xin lỗi, à...»  (3.47s)
+«いててて……クソ受け身がとれてたら……» → «Tôi ở đây... nếu tôi có thể nhận được vị thế này...»  (5.94s)
+##### HẾT #####
