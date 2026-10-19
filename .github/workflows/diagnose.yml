@@ -54,7 +54,10 @@ jobs:
           path: app/src/main/assets/mt
           key: opus-ja-en-${{ hashFiles('scripts/models/**') }}
       - name: Tạo mô hình Opus-MT Nhật→Anh (ONNX int8)
-        run: bash scripts/models/prepare_models.sh
+        run: |
+          mkdir -p res
+          set -o pipefail
+          bash scripts/models/prepare_models.sh 2>&1 | tee res/model_export.txt
       - name: Build APK + APK kiểm thử (đủ ABI cho trình giả lập)
         run: chmod +x gradlew && ./gradlew --no-daemon -PallAbis assembleDebug assembleDebugAndroidTest
       - name: Bật KVM
