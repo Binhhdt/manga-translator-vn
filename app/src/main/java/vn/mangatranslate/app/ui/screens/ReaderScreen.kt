@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,7 +36,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -74,7 +80,12 @@ fun ReaderScreen(state: UiState, vm: MainViewModel) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         Column(Modifier.fillMaxSize()) {
-            ReaderTopBar(state, onBack = vm::closeReader, onSettings = vm::openSettings)
+            ReaderTopBar(
+                state,
+                onBack = vm::closeReader,
+                onSettings = vm::openSettings,
+                onLanguage = { lang -> vm.updateSettings { it.copy(sourceLanguage = lang) } }
+            )
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (state.loadingPage) {
@@ -118,7 +129,7 @@ fun ReaderScreen(state: UiState, vm: MainViewModel) {
                     region = region,
                     overflow = id in state.overflowIds,
                     onDismiss = vm::dismissRegionDialog,
-                    onSave = { src, tr -> vm.saveRegionEdit(id, src, tr) },
+                    onSave = { src, tr, again -> vm.saveRegionEdit(id, src, tr, again) },
                     onRetranslate = { src -> vm.retranslateRegion(id, src) },
                     onToggleEnabled = { vm.toggleRegionEnabled(id) },
                     onDelete = { vm.deleteRegion(id) }
@@ -131,7 +142,8 @@ fun ReaderScreen(state: UiState, vm: MainViewModel) {
 }
 
 @Composable
-private fun ReaderTopBar(state: UiState, onBack: () -> Unit, onSettings: () -> Unit) {
+private fun ReaderTopBar(state: UiState, onBack: () -> Unit, onSettings: () -> Unit, onLanguage: (SourceLanguage) -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
     val lang = when {
         state.settings.sourceLanguage != SourceLanguage.AUTO -> state.settings.sourceLanguage.label
         state.detectedLanguage != null -> "Tự động: ${state.detectedLanguage.label}"
@@ -156,11 +168,23 @@ private fun ReaderTopBar(state: UiState, onBack: () -> Unit, onSettings: () -> U
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                "Trang ${state.pageIndex + 1}/${state.pages.size} · $lang",
+                "Trang ${state.pageIndex + 1}/${state.pages.size} · $lang ▾",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                modifier = Modifier.clickable { menuOpen = true }
             )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                SourceLanguage.entries.forEach { l ->
+                    DropdownMenuItem(
+                        text = { Text((if (l == state.settings.sourceLanguage) "✓ " else "") + "Khóa nguồn: ${l.label}") },
+                        onClick = {
+                            menuOpen = false
+                            onLanguage(l)
+                        }
+                    )
+                }
+            }
         }
         IconButton(onClick = onSettings) {
             Icon(Icons.Filled.Settings, contentDescription = "Cài đặt")
@@ -172,9 +196,11 @@ private fun ReaderTopBar(state: UiState, onBack: () -> Unit, onSettings: () -> U
 private fun StatusBanner(state: UiState, hasTranslation: Boolean, modifier: Modifier) {
     val text = when {
         state.mode == ReaderMode.ADD_REGION -> "Kéo một ngón tay để khoanh vùng chữ cần nhận dạng. (Thoát: nhấn lại “Thêm vùng”)"
-        state.mode == ReaderMode.EDIT -> "Chạm vào khung để sửa. Xanh: tự động · Lục: khoanh tay · Đỏ: tràn khung"
+        state.mode == ReaderMode.EDIT -> "Chạm vào khung để kiểm tra/sửa. Xanh: ổn · Cam: cần kiểm tra · Đỏ: tràn khung · Lục: khoanh tay"
         state.overflowIds.isNotEmpty() && state.showTranslated ->
             "⚠ ${state.overflowIds.size} vùng chữ không vừa khung — hãy rút ngắn câu trong “Sửa chữ”."
+        state.regions.any { it.needsReview } && state.showTranslated ->
+            "⚠ ${state.regions.count { it.needsReview }} vùng cần kiểm tra — mở “Sửa chữ” (khung cam)."
         hasTranslation && !state.showTranslated -> "Đang xem bản gốc"
         else -> null
     } ?: return

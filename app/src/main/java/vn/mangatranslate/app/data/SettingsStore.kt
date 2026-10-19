@@ -6,6 +6,8 @@ import vn.mangatranslate.app.core.model.PronounStyle
 import vn.mangatranslate.app.core.model.RenderStyle
 import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.model.TextColorMode
+import vn.mangatranslate.app.core.translate.Glossary
+import vn.mangatranslate.app.core.translate.GlossaryEntry
 
 data class AppSettings(
     val sourceLanguage: SourceLanguage = SourceLanguage.AUTO,
@@ -15,15 +17,30 @@ data class AppSettings(
     val bold: Boolean = true,
     val lineSpacing: Float = 1.0f,
     val coverBackground: Boolean = true,
-    val exportFormat: ExportFormat = ExportFormat.JPG
+    val exportFormat: ExportFormat = ExportFormat.JPG,
+    val overlayOpacity: Int = 92,
+    val cleanBubbles: Boolean = true,
+    val glossaryText: String = DEFAULT_GLOSSARY
 ) {
     fun toRenderStyle() = RenderStyle(
         textColorMode = textColorMode,
         outline = outline,
         bold = bold,
         lineSpacing = lineSpacing,
-        coverBackground = coverBackground
+        coverBackground = coverBackground,
+        overlayOpacity = overlayOpacity,
+        cleanBubbles = cleanBubbles
     )
+
+    fun glossary(): List<GlossaryEntry> = Glossary.parse(glossaryText)
+
+    companion object {
+        const val DEFAULT_GLOSSARY = "# Mỗi dòng: nguồn = đích. Dòng bắt đầu bằng # là ghi chú.\n" +
+            "# Chữ Nhật/Trung/Hàn ở bên trái → thay TRƯỚC khi dịch (giữ tên riêng):\n" +
+            "# 黒崎 = Kurosaki\n" +
+            "# Chữ Latin/tiếng Việt ở bên trái → sửa SAU khi dịch:\n" +
+            "# Blacklord = Kurosaki\n"
+    }
 }
 
 /** Lưu cài đặt bằng SharedPreferences (Room dùng cho dữ liệu dự án từ Giai đoạn 3). */
@@ -40,7 +57,10 @@ class SettingsStore(context: Context) {
             bold = prefs.getBoolean("bold", d.bold),
             lineSpacing = prefs.getFloat("lineSpacing", d.lineSpacing),
             coverBackground = prefs.getBoolean("cover", d.coverBackground),
-            exportFormat = enumOr(prefs.getString("format", null), d.exportFormat)
+            exportFormat = enumOr(prefs.getString("format", null), d.exportFormat),
+            overlayOpacity = prefs.getInt("overlayOpacity", d.overlayOpacity),
+            cleanBubbles = prefs.getBoolean("cleanBubbles", d.cleanBubbles),
+            glossaryText = prefs.getString("glossary", null) ?: d.glossaryText
         )
     }
 
@@ -54,6 +74,9 @@ class SettingsStore(context: Context) {
             .putFloat("lineSpacing", s.lineSpacing)
             .putBoolean("cover", s.coverBackground)
             .putString("format", s.exportFormat.name)
+            .putInt("overlayOpacity", s.overlayOpacity)
+            .putBoolean("cleanBubbles", s.cleanBubbles)
+            .putString("glossary", s.glossaryText)
             .apply()
     }
 

@@ -179,14 +179,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(busy = "Đang chuẩn bị…", mode = ReaderMode.VIEW, selectedRegionId = null) }
             try {
                 val result = withContext(Dispatchers.Default) {
-                    pageTranslator.translatePage(bmp, requested, s.settings.pronounStyle) { stage ->
+                    pageTranslator.translatePage(bmp, requested, s.settings.pronounStyle, s.settings.glossary()) { stage ->
                         _state.update { it.copy(busy = stage) }
                     }
                 }
                 pageCache[page.uri.toString()] = CachedPage(result.language, result.regions)
+                val review = result.regions.count { it.needsReview }
                 val msg = if (result.regions.isEmpty())
                     "Không tìm thấy chữ (${result.language.label}). Thử chọn đúng ngôn ngữ trong Cài đặt hoặc dùng “Thêm vùng”."
-                else "Đã dịch ${result.regions.size} vùng chữ (${result.language.label} → Việt). Chạm “Sửa chữ” để chỉnh."
+                else "Đã dịch ${result.regions.size} vùng chữ (${result.language.label} → Việt)" +
+                    (if (review > 0) ", $review vùng cần kiểm tra (khung cam trong “Sửa chữ”)." else ".")
                 _state.update {
                     it.copy(
                         busy = null, regions = result.regions, detectedLanguage = result.language,
@@ -254,22 +256,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val s = _state.value
         if (s.mode != ReaderMode.EDIT) return
         val hit = s.regions
-            .filter { it.box.expand(it.lineHeight * 0.4f).contains(x, y) }
-            .minByOrNull { it.box.area }
+            .filter { r -> hitBox(r).contains(x, y) }
+            .minByOrNull { r -> hitBox(r).area }
         if (hit == null) showMessage("Chạm vào một khung màu để sửa vùng chữ đó.")
         _state.update { it.copy(selectedRegionId = hit?.id) }
     }
 
+    private fun hitBox(r: TextRegion): BoxF =
+        (r.bubble?.box ?: r.layoutBox ?: r.box).union(r.box.expand(r.lineHeight * 0.4f))
+
     fun dismissRegionDialog() = _state.update { it.copy(selectedRegionId = null) }
 
-    fun saveRegionEdit(id: Int, sourceText: String, translation: String) {
+    /**
+     * Lưu chỉnh sửa. Nếu người dùng đã sửa chữ gốc mà không tự sửa bản dịch, dịch lại từ chữ gốc MỚI
+     * (không dùng kết quả OCR cũ).
+     */
+    fun saveRegionEdit(id: Int, sourceText: String, translation: String, retranslate: Boolean) {
+        if (retranslate) {
+            _state.update { it.copy(selectedRegionId = null) }
+            retranslateRegion(id, sourceText)
+            return
+        }
+        val glossary = _state.value.settings.glossary()
         updateRegions { r ->
             if (r.id != id) r
-            else r.copy(
-                sourceText = sourceText,
-                translatedText = translation.trim(),
-                userEdited = r.userEdited || translation.trim() != r.translatedText
-            )
+            else {
+                val tr = translation.trim()
+                val (rev, inf) = pageTranslator.review(sourceText, tr, r.sourceLang, glossary)
+                r.copy(
+                    sourceText = sourceText,
+                    translatedText = tr,
+                    userEdited = r.userEdited || tr != r.translatedText,
+                    reviewNotes = rev,
+                    infoNotes = inf
+                )
+            }
         }
         _state.update { it.copy(selectedRegionId = null) }
     }
@@ -285,24 +306,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun retranslateRegion(id: Int, sourceText: String) {
         val s = _state.value
         if (s.busy != null) return
-        val lang = s.detectedLanguage ?: s.settings.sourceLanguage.takeIf { it != SourceLanguage.AUTO }
+        val regionLang = s.regions.firstOrNull { it.id == id }?.sourceLang
+            ?.let { code -> SourceLanguage.entries.firstOrNull { it.code == code } }
+        val lang = regionLang ?: s.detectedLanguage ?: s.settings.sourceLanguage.takeIf { it != SourceLanguage.AUTO }
         if (lang == null) {
             showMessage("Chưa biết ngôn ngữ nguồn — hãy chọn trong Cài đặt.")
             return
         }
+        val glossary = s.settings.glossary()
         workJob = viewModelScope.launch {
             _state.update { it.copy(busy = "Đang dịch lại…") }
             try {
                 val raw = withContext(Dispatchers.Default) {
-                    pageTranslator.translateText(sourceText, lang) { stage -> _state.update { it.copy(busy = stage) } }
+                    pageTranslator.translateText(sourceText, lang, glossary) { stage -> _state.update { it.copy(busy = stage) } }
                 }
                 val pronoun = _state.value.settings.pronounStyle
+                val translated = pageTranslator.finalize(raw, pronoun)
+                val (rev, inf) = pageTranslator.review(sourceText, translated, lang.code ?: "", glossary)
                 _state.update { it.copy(busy = null) }
                 updateRegions { r ->
                     if (r.id != id) r
                     else r.copy(
                         sourceText = sourceText, rawTranslation = raw,
-                        translatedText = pageTranslator.finalize(raw, pronoun), userEdited = false
+                        translatedText = translated, userEdited = false,
+                        reviewNotes = rev, infoNotes = inf, sourceLang = lang.code ?: r.sourceLang
                     )
                 }
             } catch (e: CancellationException) {
@@ -332,7 +359,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(busy = "Đang xử lý vùng chọn…") }
             try {
                 val result = withContext(Dispatchers.Default) {
-                    pageTranslator.recognizeManualRegion(bmp, box, requested, s.settings.pronounStyle, nextId) { stage ->
+                    pageTranslator.recognizeManualRegion(bmp, box, requested, s.settings.pronounStyle, s.settings.glossary(), nextId) { stage ->
                         _state.update { it.copy(busy = stage) }
                     }
                 }

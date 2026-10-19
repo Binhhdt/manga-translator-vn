@@ -57,9 +57,12 @@ app/src/main/java/vn/mangatranslate/app/
 ├── core/
 │   ├── model/        BoxF (tọa độ ảnh gốc), TextRegion, SourceLanguage, PronounStyle, RenderStyle
 │   ├── image/        ImageLoader (SAF: ảnh, thư mục, CBZ; giải mã an toàn RAM), PreviewChunker (xem trước chia dải)
-│   ├── ocr/          OCRProcessor (ML Kit v2, phóng chữ nhỏ, chia ô ảnh dài), TextRegionDetector (gom vùng thoại, thứ tự đọc, chữ dọc)
-│   ├── translate/    TranslationEngine (ML Kit Translate + cache), PronounAdapter (đổi xưng hô)
-│   ├── render/       VietnameseTextRenderer (che nền, tự xuống dòng, tự cỡ chữ, viền, cảnh báo tràn)
+│   ├── vision/       BubbleDetector (tìm bong bóng khép kín), TextLayoutAnalyzer (tách cột dọc, phát hiện furigana),
+│   │                 VerticalComposer (xếp chữ dọc thành hàng ngang), WhiteSpaceExpander, TextBlobFinder — thuần Kotlin
+│   ├── ocr/          OCRProcessor (ML Kit v2), RegionOcr (OCR từng vùng nhiều cách + chấm điểm), RubyFilter (bỏ furigana),
+│   │                 OcrCandidateScorer, TextRegionDetector (gom vùng ngoài bong bóng, thứ tự đọc)
+│   ├── translate/    TranslationEngine (ML Kit + cache), Glossary (thuật ngữ/tên riêng), QualityChecker ("Cần kiểm tra"), PronounAdapter
+│   ├── render/       VietnameseTextRenderer (xóa chữ trong bong bóng trắng, lớp phủ, đặt chữ trong bong bóng), FontSizing
 │   ├── export/       ImageExporter (MediaStore / thư mục Pictures cho Android 8–9)
 │   ├── pipeline/     PageTranslator (OCR → gom vùng → dịch; vùng khoanh tay; đoán ngôn ngữ)
 │   └── util/         NaturalOrderComparator, TextNormalizer
@@ -74,21 +77,52 @@ mọi xử lý nặng chạy trên `Dispatchers.Default/IO`, giao diện không 
 Các thành phần `TextMaskGenerator`, `InpaintingProcessor`, `BatchTranslationManager`, `ProjectRepository` (Room)
 **chưa có trong Giai đoạn 1** — chúng được viết thật ở các giai đoạn sau, không tạo hàm rỗng giả.
 
-## 5. Giới hạn hiện tại (nói thẳng)
+## 5. Quy trình OCR & dịch (bản nâng cấp 0.1.1)
+
+1. OCR toàn trang bằng ML Kit để biết chỗ có chữ.
+2. Tìm bong bóng khép kín (vùng trắng có viền); mỗi dòng chữ được gán vào đúng bong bóng chứa nó → **không ghép chữ của hai bong bóng**.
+3. Mỗi bong bóng được cắt riêng (tô trắng phần ngoài), rồi OCR bằng nhiều cách: *đọc riêng vùng* (phóng to), *tách cột dọc*
+   (tách cột phải→trái, bỏ cột furigana, xếp ký tự thành hàng ngang giữ nguyên chiều đứng), *ảnh đen trắng* (khi kết quả yếu).
+   Chọn cách có điểm cao nhất: đúng loại chữ của ngôn ngữ nguồn, khớp số ô ký tự đếm được trên ảnh. **Không xoay cả ảnh 90°**
+   (ký tự nằm nghiêng làm ML Kit đọc kém hơn).
+4. Chữ ngoài bong bóng: bỏ furigana rồi gom theo khoảng cách, cũng OCR lại từng vùng; vùng đặt chữ Việt = khoảng trắng quanh chữ.
+5. Nhật/Trung/Hàn: dò cụm nét giống chữ mà OCR toàn trang bỏ sót, đọc lại, gắn nhãn **Cần kiểm tra**.
+6. Dịch **cả nội dung một bong bóng một lần**; thay thuật ngữ trước/sau dịch; viết tắt bóng đá (GK, FW, MF, DF, PK, FK, CK)
+   được đổi sang dạng đầy đủ để máy dịch hiểu đúng (GK → thủ môn).
+7. Gắn nhãn **Cần kiểm tra** khi: OCR có ký tự lạ, các cách đọc OCR mâu thuẫn, bản dịch còn chữ chưa dịch, có từ không phải
+   tiếng Việt (ví dụ "buzzma", "ucking"), hoặc thuật ngữ không được giữ. Không có điểm tin cậy giả.
+
+### So sánh bộ dịch miễn phí chạy trên máy
+
+| Phương án | Nhật → Việt | Kích thước / RAM | Giấy phép | Đánh giá |
+|---|---|---|---|---|
+| **ML Kit Translate** (đang dùng) | Qua tiếng Anh trung gian (Google ghi rõ có thể ảnh hưởng chất lượng) | ~30 MB/ngôn ngữ | Miễn phí | Nhẹ, ổn định; chất lượng "dùng tạm" |
+| Opus-MT ja-vi (Helsinki-NLP) | Dịch thẳng | Vài trăm MB, cần ONNX Runtime + SentencePiece | Apache-2.0 | BLEU 20.3 trên Tatoeba — chưa chắc hơn ML Kit, cần thử thực tế |
+| NLLB-200 distilled 600M | Dịch thẳng | 600 triệu tham số, nặng với máy 4 GB | CC-BY-NC (phi thương mại), "không dành cho triển khai thực tế" | Không đề xuất |
+| LLM nhỏ (1–2 tỷ tham số) | Tốt hơn về văn phong | ≥ 1 GB, chậm trên máy tầm trung | Tùy mô hình | Không đề xuất cho máy 4 GB |
+
+Kết luận: **giữ ML Kit**, nâng chất lượng bằng OCR đúng (nguyên nhân chính của câu vô nghĩa), bảng thuật ngữ và sửa tay.
+OCR thay thế đáng cân nhắc tiếp theo: **manga-ocr** (Apache-2.0, chuyên chữ dọc + furigana manga, bản lượng tử hóa cho Android
+khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
+
+## 6. Giới hạn hiện tại (nói thẳng)
 
 - **Chất lượng dịch**: ML Kit dịch từng câu, không hiểu ngữ cảnh, không biết ai nói với ai. Trung/Nhật/Hàn → Việt đi qua tiếng Anh trung gian nên kém tự nhiên hơn Anh → Việt. Đổi xưng hô chỉ là thay thế theo quy tắc. Hãy coi bản dịch là bản nháp để sửa.
-- **OCR**: ML Kit đọc tốt chữ in ngang. Chữ **dọc tiếng Nhật**, chữ cách điệu, chữ viết tay, hiệu ứng âm thanh thường đọc sai hoặc bỏ sót → dùng *Thêm vùng* và sửa tay.
-- **Gom bong bóng** dựa trên khoảng cách hình học giữa các khối chữ, không nhận diện hình bong bóng — đôi khi gộp/tách sai, sửa bằng *Sửa chữ*.
-- **Xóa chữ gốc**: Giai đoạn 1 phủ một khối màu nền (màu lấy từ viền vùng chữ). Đẹp với bong bóng trắng/màu trơn; trên nền tranh phức tạp sẽ lộ mảng màu → Giai đoạn 2 (mask nét chữ + OpenCV inpainting).
+- **OCR chữ dọc**: đã cải thiện bằng tách cột + bỏ furigana, nhưng ML Kit vẫn không phải OCR chuyên manga. Chữ cách điệu, viết tay, hiệu ứng âm thanh vẫn có thể sai → xem nhãn *Cần kiểm tra*, dùng *Thêm vùng* và *Sửa chữ Nhật*.
+- **Bong bóng hở** (tràn qua khung tranh, dính lề trang, hình sao thông ra nền) không tách được bằng viền → dùng khoảng trắng quanh chữ + lớp phủ.
+- **Xóa chữ gốc**: xóa sạch trong bong bóng trắng khép kín; còn lại dùng lớp phủ sáng (độ che chỉnh trong Cài đặt). Inpainting trên nền tranh: Giai đoạn 2.
 - **Kết quả dịch chỉ giữ trong bộ nhớ** khi ứng dụng đang mở; ảnh đã lưu thì giữ vĩnh viễn. Lưu/mở lại dự án có ở Giai đoạn 3.
 - Font dùng sans-serif hệ thống (Roboto/Noto) — hỗ trợ đầy đủ dấu tiếng Việt; font phong cách truyện tranh sẽ thêm sau.
 - Chưa đo tốc độ trên thiết bị thật nên không cam kết thời gian xử lý.
 
-## 6. Kiểm thử
+## 7. Kiểm thử
 
-**Đã chạy**: 18 unit test cho phần logic thuần (`app/src/test/`) — sắp xếp tự nhiên, gom vùng thoại, đọc chữ dọc phải→trái,
-lọc nhiễu, thứ tự đọc manga, chuẩn hóa chữ IN HOA tiếng Anh, nối dòng CJK/Latin/Hàn, đổi xưng hô. Các test này chạy
-trên GitHub Actions trước khi build APK (`./gradlew testDebugUnitTest`).
+**Đã chạy**: 39 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
+tìm bong bóng trên trang giả lập, chữ của hai bong bóng không bị ghép, viền bong bóng không bị coi là chữ, thứ tự cột dọc
+phải→trái, phát hiện furigana, ký tự nhiều nét (二) đếm là một ô, xếp cột thành hàng, khoảng trắng dừng ở viền bong bóng,
+chấm điểm OCR (furigana lẫn vào bị trừ điểm), phát hiện từ lạ trong chính các câu lỗi từ ảnh thử ("buzzma", "ucking"),
+chữ chưa dịch, bảng thuật ngữ, GK → ゴールキーパー, cỡ chữ không bị tí hon.
+Thuật toán tìm bong bóng / tách cột / dò chữ bỏ sót còn được chạy thử trên ảnh chụp màn hình thật.
 
 **Chưa chạy được** (cần điện thoại thật + ảnh truyện): OCR/dịch thật, vẽ chữ, lưu ảnh. Hãy kiểm tra theo bảng:
 
@@ -106,9 +140,10 @@ trên GitHub Actions trước khi build APK (`./gradlew testDebugUnitTest`).
 | 10 | Lưu/mở lại dự án | — | Giai đoạn 3 |
 | 11 | Font tiếng Việt | Lưu ảnh có "Người, Được, Ở, Ữ, Ỵ" → mở trong Thư viện | Dấu hiển thị đúng, không bị cắt |
 
-## 7. Lộ trình
+## 8. Lộ trình
 
-- **Giai đoạn 1 (bản này)**: mở ảnh/thư mục/CBZ, OCR, dịch, chèn chữ Việt, sửa chữ, khoanh vùng thủ công, lưu ảnh.
+- **Giai đoạn 1 (bản này)**: mở ảnh/thư mục/CBZ, OCR theo bong bóng, dịch, chèn chữ Việt, kiểm tra/sửa OCR, khoanh vùng thủ công, lưu ảnh.
+- **Đề xuất 1.5**: tích hợp manga-ocr (tải tùy chọn) làm bộ đọc chữ Nhật thứ hai cho từng bong bóng, chọn theo cùng cơ chế chấm điểm.
 - **Giai đoạn 2**: TextMaskGenerator (tách nét chữ khỏi nền bằng ngưỡng thích nghi), OpenCV inpainting (Telea/Navier-Stokes), công cụ sửa mask, hoàn tác, xem trước.
 - **Giai đoạn 3**: BatchTranslationManager (WorkManager, tạm dừng/tiếp tục/hủy, dịch lại trang lỗi, lưu tiến trình), Room lưu dự án, xuất cả chương JPG/PNG/CBZ.
 - **Giai đoạn 4**: kéo thả/đổi cỡ/xoay khung chữ, chọn font, bảng thuật ngữ & tên nhân vật theo từng bộ truyện, undo/redo.

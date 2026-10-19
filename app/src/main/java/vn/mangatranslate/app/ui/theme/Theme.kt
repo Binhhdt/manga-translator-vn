@@ -9,6 +9,7 @@ val Accent = Color(0xFFFF8A3D)
 val BoxBlue = Color(0xFF3DB8FF)
 val BoxRed = Color(0xFFFF4D4D)
 val BoxGreen = Color(0xFF7CFC9A)
+val BoxOrange = Color(0xFFFFA726)
 
 private val DarkScheme = darkColorScheme(
     primary = Accent,

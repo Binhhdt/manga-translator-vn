@@ -48,7 +48,32 @@ data class TextRegion(
     val lineHeight: Float,
     val manual: Boolean = false,
     val userEdited: Boolean = false,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** Vùng đặt chữ Việt (ảnh gốc): phần trong bong bóng hoặc khoảng trắng quanh chữ. null = dùng [box]. */
+    val layoutBox: BoxF? = null,
+    /** Hình dạng bong bóng nếu phát hiện được bong bóng khép kín (dùng để xóa sạch chữ gốc trong bong bóng). */
+    val bubble: BubbleShape? = null,
+    /** Lý do cần người dùng kiểm tra (dấu hiệu kiểm chứng được, không phải điểm tin cậy). */
+    val reviewNotes: List<String> = emptyList(),
+    /** Ghi chú thêm, không tính là lỗi. */
+    val infoNotes: List<String> = emptyList(),
+    /** Cách OCR đã chọn cho vùng này. */
+    val ocrMethod: String = "",
+    /** Mã ngôn ngữ nguồn (ja, zh, ko, en). */
+    val sourceLang: String = ""
+) {
+    val needsReview: Boolean get() = reviewNotes.isNotEmpty()
+}
+
+/**
+ * Bong bóng khép kín đã phát hiện. [mask] dùng tọa độ ảnh xám đã thu nhỏ; ảnh gốc = tọa độ xám / [scale].
+ * Không phải data class: so sánh theo tham chiếu (mảng mặt nạ lớn).
+ */
+class BubbleShape(
+    val box: BoxF,
+    val inner: BoxF,
+    val mask: vn.mangatranslate.app.core.vision.BubbleDetector.Bubble,
+    val scale: Float
 )
 
 data class RenderStyle(
@@ -56,5 +81,9 @@ data class RenderStyle(
     val outline: Boolean = true,
     val bold: Boolean = true,
     val lineSpacing: Float = 1.0f,
-    val coverBackground: Boolean = true
+    val coverBackground: Boolean = true,
+    /** Độ che của lớp nền sáng (0–100%) khi không xóa sạch được chữ gốc. */
+    val overlayOpacity: Int = 92,
+    /** Xóa sạch chữ gốc trong bong bóng trắng khép kín. */
+    val cleanBubbles: Boolean = true
 )

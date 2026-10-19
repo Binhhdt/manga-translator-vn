@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,6 +45,7 @@ import vn.mangatranslate.app.core.export.ExportFormat
 import vn.mangatranslate.app.core.model.PronounStyle
 import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.model.TextColorMode
+import vn.mangatranslate.app.core.translate.Glossary
 import vn.mangatranslate.app.ui.MainViewModel
 import vn.mangatranslate.app.ui.ModelState
 import vn.mangatranslate.app.ui.UiState
@@ -94,7 +97,18 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
             SwitchRow("Viền chữ", s.outline) { v -> vm.updateSettings { it.copy(outline = v) } }
             SwitchRow("Chữ đậm", s.bold) { v -> vm.updateSettings { it.copy(bold = v) } }
-            SwitchRow("Phủ nền che chữ gốc", s.coverBackground) { v -> vm.updateSettings { it.copy(coverBackground = v) } }
+            SwitchRow("Xóa sạch chữ gốc trong bong bóng trắng", s.cleanBubbles) { v -> vm.updateSettings { it.copy(cleanBubbles = v) } }
+            Hint("Chỉ áp dụng cho bong bóng có viền khép kín, nền sáng: mọi nét bị bong bóng bao kín (chữ, furigana) được tô màu nền; viền và hình vẽ bên ngoài không bị đụng tới.")
+            SwitchRow("Lớp phủ nền sáng (vùng không xóa sạch được)", s.coverBackground) { v -> vm.updateSettings { it.copy(coverBackground = v) } }
+            var opacity by remember(s.overlayOpacity) { mutableFloatStateOf(s.overlayOpacity.toFloat()) }
+            Text("Độ che lớp phủ: ${opacity.toInt()}%", modifier = Modifier.padding(top = 4.dp))
+            Slider(
+                value = opacity,
+                onValueChange = { opacity = it },
+                onValueChangeFinished = { vm.updateSettings { it.copy(overlayOpacity = opacity.toInt()) } },
+                valueRange = 0f..100f,
+                enabled = s.coverBackground
+            )
 
             var spacing by remember(s.lineSpacing) { mutableFloatStateOf(s.lineSpacing) }
             Text("Giãn dòng: ${String.format(Locale.US, "%.2f", spacing)}", modifier = Modifier.padding(top = 8.dp))
@@ -104,6 +118,31 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 onValueChangeFinished = { vm.updateSettings { it.copy(lineSpacing = spacing) } },
                 valueRange = 0.8f..1.6f
             )
+
+            Section("Bảng thuật ngữ / tên riêng")
+            var glossary by remember(s.glossaryText) { mutableStateOf(s.glossaryText) }
+            OutlinedTextField(
+                value = glossary,
+                onValueChange = { glossary = it },
+                minLines = 5,
+                textStyle = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${Glossary.parse(glossary).size} mục",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                FilledTonalButton(
+                    onClick = {
+                        vm.updateSettings { it.copy(glossaryText = glossary) }
+                        vm.showMessage("Đã lưu bảng thuật ngữ. Nhấn “Dịch” lại để áp dụng cho trang đang mở.")
+                    },
+                    enabled = glossary != s.glossaryText
+                ) { Text("Lưu thuật ngữ") }
+            }
+            Hint("Mỗi dòng “nguồn = đích”. Bên trái là chữ Nhật/Trung/Hàn → thay trước khi dịch để giữ tên riêng (黒崎 = Kurosaki, 神奈川 = Kanagawa). Bên trái là chữ Latin/Việt → sửa sau khi dịch (Blacklord = Kurosaki). Viết tắt bóng đá GK, FW, MF, DF, PK, FK, CK trong truyện Nhật được tự hiểu đúng.")
 
             Section("Định dạng khi lưu ảnh")
             ExportFormat.entries.forEach { f ->
@@ -133,7 +172,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             Hint(
                 "• Dịch offline dịch từng câu riêng lẻ, không hiểu ngữ cảnh; Trung/Nhật/Hàn → Việt kém tự nhiên hơn Anh → Việt.\n" +
                     "• ML Kit đọc chữ dọc tiếng Nhật, chữ viết tay và hiệu ứng âm thanh kém. Dùng “Thêm vùng” và sửa tay khi cần.\n" +
-                    "• Giai đoạn 1 che chữ gốc bằng khối màu nền — đẹp với bong bóng trắng. Xóa chữ trên nền tranh phức tạp (inpainting) có ở Giai đoạn 2.\n" +
+                    "• Chữ gốc trong bong bóng trắng khép kín được xóa sạch; chữ trên nền tranh hoặc bong bóng hở được che bằng lớp phủ sáng. Xóa chữ trên nền tranh phức tạp (inpainting) có ở Giai đoạn 2.\n" +
                     "• Kết quả dịch chỉ giữ trong lúc ứng dụng mở; lưu dự án để sửa lại sau có ở Giai đoạn 3."
             )
             Spacer(Modifier.height(24.dp))

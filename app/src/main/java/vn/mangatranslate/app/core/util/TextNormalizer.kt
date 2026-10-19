@@ -50,9 +50,37 @@ object TextNormalizer {
         var t = text.replace(Regex("\\s+"), " ").trim()
         when (langCode) {
             "en" -> t = fixAllCaps(t)
-            "ja", "zh" -> t = removeSpacesBetweenCjk(t)
+            "ja", "zh" -> {
+                // Chữ/số toàn khổ (ＧＫ, ！！) → dạng thường để máy dịch hiểu.
+                t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC)
+                t = removeSpacesBetweenCjk(t)
+                if (langCode == "ja") t = expandSportsAbbreviations(t)
+            }
         }
         return t
+    }
+
+    /**
+     * Viết tắt vị trí/tình huống bóng đá trong truyện Nhật (GK, FW…) được máy dịch giữ nguyên hoặc hiểu sai.
+     * Đổi sang dạng katakana đầy đủ — ML Kit dịch đúng các từ này (ゴールキーパー → thủ môn).
+     * Chỉ thay khi là từ đứng riêng (không nằm trong từ Latin dài hơn).
+     */
+    private val SPORTS_ABBR = mapOf(
+        "GK" to "ゴールキーパー",
+        "FW" to "フォワード",
+        "MF" to "ミッドフィールダー",
+        "DF" to "ディフェンダー",
+        "PK" to "ペナルティキック",
+        "FK" to "フリーキック",
+        "CK" to "コーナーキック"
+    )
+
+    fun expandSportsAbbreviations(t: String): String {
+        var out = t
+        for ((abbr, full) in SPORTS_ABBR) {
+            out = Regex("(?<![A-Za-z])$abbr(?![A-Za-z])").replace(out, full)
+        }
+        return out
     }
 
     private fun removeSpacesBetweenCjk(t: String): String {

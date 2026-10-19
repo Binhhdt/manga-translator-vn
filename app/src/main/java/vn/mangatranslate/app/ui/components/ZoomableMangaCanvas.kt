@@ -30,6 +30,7 @@ import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.TextRegion
 import vn.mangatranslate.app.ui.theme.BoxBlue
 import vn.mangatranslate.app.ui.theme.BoxGreen
+import vn.mangatranslate.app.ui.theme.BoxOrange
 import vn.mangatranslate.app.ui.theme.BoxRed
 import kotlin.math.abs
 import kotlin.math.max
@@ -182,13 +183,15 @@ fun ZoomableMangaCanvas(
                     val color = when {
                         !r.enabled -> Color.Gray
                         r.id in overflowIds -> BoxRed
+                        r.needsReview -> BoxOrange
                         r.manual -> BoxGreen
                         else -> BoxBlue
                     }
+                    val b = r.bubble?.box ?: r.layoutBox ?: r.box
                     drawRect(
                         color = color,
-                        topLeft = Offset(r.box.left * k, r.box.top * k),
-                        size = Size(r.box.width * k, r.box.height * k),
+                        topLeft = Offset(b.left * k, b.top * k),
+                        size = Size(b.width * k, b.height * k),
                         style = Stroke(width = stroke)
                     )
                 }

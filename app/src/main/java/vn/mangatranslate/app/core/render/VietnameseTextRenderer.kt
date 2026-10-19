@@ -11,23 +11,26 @@ import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
 import vn.mangatranslate.app.core.model.BoxF
+import vn.mangatranslate.app.core.model.BubbleShape
 import vn.mangatranslate.app.core.model.RenderStyle
 import vn.mangatranslate.app.core.model.TextColorMode
 import vn.mangatranslate.app.core.model.TextRegion
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Vẽ bản dịch tiếng Việt lên ảnh ở ĐỘ PHÂN GIẢI GỐC.
+ * Vẽ bản dịch tiếng Việt lên ảnh ở ĐỘ PHÂN GIẢI GỐC (ảnh gốc không bị sửa — luôn vẽ trên bản sao).
  *
- * Giai đoạn 1: che chữ gốc bằng một khối nền (màu lấy trung vị từ viền vùng chữ — với bong bóng trắng
- * sẽ ra màu trắng). Giai đoạn 2 sẽ thay bằng mask nét chữ + OpenCV inpainting.
+ * Che chữ gốc:
+ * - Bong bóng trắng khép kín: xóa sạch mọi nét bị bong bóng bao kín (chữ + furigana) bằng màu nền bong bóng;
+ *   viền bong bóng và hình vẽ bên ngoài không bị đụng tới.
+ * - Còn lại: lớp phủ nền sáng với độ che chỉnh được trong Cài đặt.
  *
- * Chữ: căn giữa, tự xuống dòng (không cắt giữa từ), tự chọn cỡ chữ lớn nhất còn vừa khung bằng tìm kiếm
- * nhị phân. Nếu ở cỡ nhỏ nhất dễ đọc vẫn không vừa, vùng được nới rộng một chút; nếu vẫn không vừa,
- * chữ vẫn được vẽ ĐẦY ĐỦ (không cắt nội dung) và vùng bị đánh dấu "tràn khung" để cảnh báo người dùng.
- *
- * Font: sans-serif hệ thống (Roboto/Noto trên Android) hỗ trợ đầy đủ dấu tiếng Việt.
+ * Đặt chữ: trong vùng nằm gọn bên trong bong bóng (hoặc khoảng trắng quanh chữ), có khoảng đệm với viền,
+ * căn giữa, xuống dòng theo từ (không cắt giữa từ), chọn cỡ chữ lớn nhất còn vừa. Không vừa thì vẫn vẽ đủ chữ
+ * ở cỡ nhỏ nhất và đánh dấu tràn khung để cảnh báo — không tự cắt bớt nội dung.
  */
 class VietnameseTextRenderer {
 
@@ -56,60 +59,83 @@ class VietnameseTextRenderer {
             val text = r.translatedText.trim()
             if (text.isEmpty()) continue
 
-            val pad = (r.lineHeight * 0.35f).coerceIn(3f, 24f)
-            val cover = r.box.expand(pad).clampTo(w, h)
-            if (cover.width < 2f || cover.height < 2f) continue
-
-            val bg = sampleBackground(original, cover)
-            if (renderStyle.coverBackground) {
-                fillPaint.color = bg
-                canvas.drawRoundRect(RectF(cover.left, cover.top, cover.right, cover.bottom), pad, pad, fillPaint)
+            var background = Color.WHITE
+            var area: BoxF
+            val limit: BoxF
+            var cleaned = false
+            val shape = r.bubble
+            if (shape != null && renderStyle.cleanBubbles) {
+                val bg = sampleBubbleBackground(original, shape)
+                if (luminance(bg) >= 0.7) {
+                    cleanBubble(out, shape, bg)
+                    background = bg
+                    cleaned = true
+                }
             }
-            val (textColor, outlineColor) = colorsFor(renderStyle.textColorMode, bg)
-            val fit = fit(text, r, layoutArea(cover, w), textPaint, renderStyle, w, h)
+
+            if (cleaned && shape != null) {
+                area = shape.inner
+                limit = shape.box
+            } else {
+                val pad = (r.lineHeight * 0.35f).coerceIn(3f, 24f)
+                val cover = (r.layoutBox ?: r.box).union(r.box.expand(pad)).clampTo(w, h)
+                if (cover.width < 2f || cover.height < 2f) continue
+                val bg = sampleBackground(original, cover)
+                val overlay = if (luminance(bg) >= 0.6) bg else Color.WHITE
+                val alpha = (renderStyle.overlayOpacity.coerceIn(0, 100) * 255) / 100
+                if (renderStyle.coverBackground && alpha > 0) {
+                    fillPaint.color = (alpha shl 24) or (overlay and 0x00FFFFFF)
+                    canvas.drawRoundRect(RectF(cover.left, cover.top, cover.right, cover.bottom), pad, pad, fillPaint)
+                    background = blend(bg, overlay, alpha / 255f)
+                } else {
+                    background = bg
+                }
+                area = widenNarrow(cover, r.box, w)
+                limit = area.expand(area.width * 0.1f, area.height * 0.2f).clampTo(w, h)
+            }
+
+            // Khoảng đệm với viền bong bóng.
+            val inset = min(area.width, area.height) * 0.06f
+            area = area.expand(-inset)
+            val (textColor, outlineColor) = colorsFor(renderStyle.textColorMode, background)
+            val fit = fit(text, r, area, limit, textPaint, renderStyle, w)
             if (!fit.fits) overflow += r.id
             drawLayout(canvas, fit, textPaint, textColor, outlineColor, renderStyle.outline)
         }
         return Output(out, overflow)
     }
 
-    /** Vùng đặt chữ. Cột chữ dọc hẹp (tiếng Nhật) được nới ngang để chữ Việt nằm ngang dễ đọc. */
-    private fun layoutArea(cover: BoxF, imageWidth: Float): BoxF {
-        var a = cover
-        if (a.width < a.height * 0.55f) {
-            val targetW = min(imageWidth, a.height * 0.6f)
-            var left = a.centerX - targetW / 2f
-            var right = a.centerX + targetW / 2f
-            if (left < 0f) { right -= left; left = 0f }
-            if (right > imageWidth) { left -= right - imageWidth; right = imageWidth }
-            a = BoxF(max(0f, left), a.top, right, a.bottom)
-        }
-        val inset = min(a.width, a.height) * 0.04f
-        return a.expand(-inset)
+    /** Cột chữ dọc hẹp: nới ngang vừa phải để chữ Việt nằm ngang, nhưng không quá 2.2 lần bề rộng ban đầu. */
+    private fun widenNarrow(cover: BoxF, textBox: BoxF, imageWidth: Float): BoxF {
+        if (cover.width >= cover.height * 0.5f) return cover
+        val targetW = min(imageWidth, min(cover.height * 0.6f, cover.width * 2.2f))
+        var left = textBox.centerX - targetW / 2f
+        var right = textBox.centerX + targetW / 2f
+        if (left < 0f) { right -= left; left = 0f }
+        if (right > imageWidth) { left -= right - imageWidth; right = imageWidth }
+        return BoxF(max(0f, left), cover.top, right, cover.bottom)
     }
 
     private fun fit(
         text: String,
         region: TextRegion,
         area0: BoxF,
+        limit: BoxF,
         paint: TextPaint,
         style: RenderStyle,
-        imageW: Float,
-        imageH: Float
+        imageW: Float
     ): Fit {
-        val minSize = max(9f, imageW * 0.012f)
-
         fun attempt(area: BoxF): Fit? {
             if (area.width < 4f || area.height < 4f) return null
-            val maxSize = max(minSize, min(region.lineHeight * 1.15f, area.height))
-            val first = build(text, paint, minSize, area.width, style)
+            val b = FontSizing.bounds(imageW, region.lineHeight, area.height)
+            val first = build(text, paint, b.min, area.width, style)
             if (!fits(first, area, text)) return null
-            val top = build(text, paint, maxSize, area.width, style)
-            if (fits(top, area, text)) return Fit(top, area, maxSize, true)
-            var lo = minSize
-            var hi = maxSize
+            val top = build(text, paint, b.max, area.width, style)
+            if (fits(top, area, text)) return Fit(top, area, b.max, true)
+            var lo = b.min
+            var hi = b.max
             var best = first
-            var bestSize = minSize
+            var bestSize = b.min
             while (hi - lo > 0.5f) {
                 val mid = (lo + hi) / 2f
                 val l = build(text, paint, mid, area.width, style)
@@ -123,10 +149,15 @@ class VietnameseTextRenderer {
         }
 
         attempt(area0)?.let { return it }
-        val bigger = area0.expand(area0.width * 0.12f, area0.height * 0.25f).clampTo(imageW, imageH)
+        // Nới vùng chữ trong giới hạn cho phép (bong bóng / vùng sáng quanh chữ).
+        val bigger = BoxF(
+            max(limit.left, area0.left - area0.width * 0.1f), max(limit.top, area0.top - area0.height * 0.15f),
+            min(limit.right, area0.right + area0.width * 0.1f), min(limit.bottom, area0.bottom + area0.height * 0.15f)
+        )
         attempt(bigger)?.let { return it }
         // Không vừa: vẫn vẽ đủ nội dung ở cỡ nhỏ nhất và báo tràn khung.
-        return Fit(build(text, paint, minSize, bigger.width, style), bigger, minSize, false)
+        val minSize = FontSizing.bounds(imageW, region.lineHeight, bigger.height).min
+        return Fit(build(text, paint, minSize, max(bigger.width, 4f), style), bigger, minSize, false)
     }
 
     private fun build(text: String, paint: TextPaint, size: Float, width: Float, style: RenderStyle): StaticLayout {
@@ -171,14 +202,70 @@ class VietnameseTextRenderer {
         canvas.restore()
     }
 
+    /** Tô màu nền lên mọi điểm bị bong bóng bao kín (nét chữ, furigana). Viền bong bóng không bị đụng tới. */
+    private fun cleanBubble(out: Bitmap, shape: BubbleShape, bg: Int) {
+        val b = shape.mask
+        val s = shape.scale
+        val l = floor(b.left / s).toInt().coerceIn(0, out.width - 1)
+        val t = floor(b.top / s).toInt().coerceIn(0, out.height - 1)
+        val r = ceil(b.right / s).toInt().coerceIn(l + 1, out.width)
+        val btm = ceil(b.bottom / s).toInt().coerceIn(t + 1, out.height)
+        val w = r - l
+        val h = btm - t
+        val px = IntArray(w * h)
+        out.getPixels(px, 0, w, l, t, w, h)
+        var changed = false
+        for (y in 0 until h) for (x in 0 until w) {
+            if (b.isHoleDilated(((l + x) * s).toInt(), ((t + y) * s).toInt())) {
+                px[y * w + x] = bg
+                changed = true
+            }
+        }
+        if (changed) out.setPixels(px, 0, w, l, t, w, h)
+    }
+
+    /** Màu nền bong bóng = trung vị các điểm bên trong bong bóng không thuộc nét chữ. */
+    private fun sampleBubbleBackground(original: Bitmap, shape: BubbleShape): Int {
+        val b = shape.mask
+        val s = shape.scale
+        val reds = ArrayList<Int>()
+        val greens = ArrayList<Int>()
+        val blues = ArrayList<Int>()
+        val step = max(1, max(b.width, b.height) / 24)
+        var gy = b.top
+        while (gy < b.bottom) {
+            var gx = b.left
+            while (gx < b.right) {
+                if (b.isInterior(gx, gy) && !b.isHoleDilated(gx, gy)) {
+                    val ox = (gx / s).toInt().coerceIn(0, original.width - 1)
+                    val oy = (gy / s).toInt().coerceIn(0, original.height - 1)
+                    val p = original.getPixel(ox, oy)
+                    reds += Color.red(p); greens += Color.green(p); blues += Color.blue(p)
+                }
+                gx += step
+            }
+            gy += step
+        }
+        if (reds.isEmpty()) return Color.WHITE
+        reds.sort(); greens.sort(); blues.sort()
+        val m = reds.size / 2
+        return Color.rgb(reds[m], greens[m], blues[m])
+    }
+
     private fun colorsFor(mode: TextColorMode, bg: Int): Pair<Int, Int> = when (mode) {
         TextColorMode.BLACK -> Color.BLACK to Color.WHITE
         TextColorMode.WHITE -> Color.WHITE to Color.BLACK
-        TextColorMode.AUTO -> {
-            val lum = (0.299 * Color.red(bg) + 0.587 * Color.green(bg) + 0.114 * Color.blue(bg)) / 255.0
-            if (lum >= 0.5) Color.BLACK to Color.WHITE else Color.WHITE to Color.BLACK
-        }
+        TextColorMode.AUTO -> if (luminance(bg) >= 0.5) Color.BLACK to Color.WHITE else Color.WHITE to Color.BLACK
     }
+
+    private fun luminance(c: Int): Double =
+        (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) / 255.0
+
+    private fun blend(base: Int, over: Int, a: Float): Int = Color.rgb(
+        (Color.red(base) * (1 - a) + Color.red(over) * a).toInt(),
+        (Color.green(base) * (1 - a) + Color.green(over) * a).toInt(),
+        (Color.blue(base) * (1 - a) + Color.blue(over) * a).toInt()
+    )
 
     /** Màu nền = trung vị từng kênh của các điểm trên viền vùng che. */
     private fun sampleBackground(bmp: Bitmap, box: BoxF): Int {

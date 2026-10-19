@@ -25,7 +25,10 @@ class TextRegionDetector(private val mergeFactor: Float = 0.8f) {
     )
 
     fun detect(blocks: List<OcrBlock>, rightToLeft: Boolean): List<DetectedRegion> {
-        val cleaned = blocks.mapNotNull { clean(it) }
+        // Bỏ furigana trước khi gom vùng — nếu không, cột furigana mỏng làm vùng bị tách/ghép sai.
+        val kept = RubyFilter.filter(blocks.flatMap { it.lines })
+        val withoutRuby = blocks.map { b -> b.copy(lines = b.lines.filter { l -> kept.any { it === l } }) }
+        val cleaned = withoutRuby.mapNotNull { clean(it) }
         if (cleaned.isEmpty()) return emptyList()
 
         val vertical = BooleanArray(cleaned.size) { isVertical(cleaned[it].lines) }
@@ -108,7 +111,7 @@ class TextRegionDetector(private val mergeFactor: Float = 0.8f) {
         return OcrBlock(lines, BoxF.unionOf(lines.map { it.box }))
     }
 
-    private fun isVertical(lines: List<OcrLine>): Boolean {
+    fun isVertical(lines: List<OcrLine>): Boolean {
         val multi = lines.filter { it.text.codePointCount(0, it.text.length) >= 2 }
         if (multi.isNotEmpty()) {
             val tall = multi.count { it.box.height > it.box.width * 1.5f }
