@@ -118,9 +118,12 @@ class OcrQualityTest {
 
     @Test
     fun goalkeeperAbbreviationIsExpanded() {
+        // Bước chuẩn hóa chung giữ nguyên "GK" (Opus-MT dịch đúng "GK", dịch sai "ゴールキーパー").
         val t = TextNormalizer.prepareForTranslation("神奈川ＧＫ負傷！！", "ja")
-        assertTrue(t.contains("ゴールキーパー"))
-        assertTrue(!t.contains("GK"))
+        assertTrue(t.contains("GK"))
+        // Đường ML Kit đổi sang katakana; câu tiếng Anh trung gian đổi sang từ đầy đủ.
+        assertTrue(TextNormalizer.expandSportsAbbreviations("神奈川GK負傷").contains("ゴールキーパー"))
+        assertEquals("goalkeeper, Kanagawa, hurt!", TextNormalizer.expandEnglishSportsAbbreviations("GK, Kanagawa, hurt!"))
         // Không thay bên trong từ Latin dài hơn.
         assertEquals("GKX", TextNormalizer.expandSportsAbbreviations("GKX"))
     }
@@ -134,5 +137,16 @@ class OcrQualityTest {
         assertTrue(b.max >= b.min)
         val big = FontSizing.bounds(imageWidth = 1000f, sourceCharSize = 200f, areaHeight = 2000f)
         assertTrue("không vượt 6% bề rộng trang", big.max <= 60f)
+    }
+}
+
+class BuiltinPlacesTest {
+    @org.junit.Test
+    fun prefectureNamesBecomeRomaji() {
+        val g = vn.mangatranslate.app.core.translate.Glossary
+        org.junit.Assert.assertEquals("あまりのKagoshimaのパワーに腕を骨折", g.applyBefore("あまりの鹿児島のパワーに腕を骨折", g.BUILTIN_JA_PLACES))
+        org.junit.Assert.assertEquals("Kanagawa GK 負傷!", g.applyBefore("神奈川 GK 負傷!", g.BUILTIN_JA_PLACES))
+        // 大分 (đáng kể) không bị đổi.
+        org.junit.Assert.assertEquals("大分よくなった", g.applyBefore("大分よくなった", g.BUILTIN_JA_PLACES))
     }
 }

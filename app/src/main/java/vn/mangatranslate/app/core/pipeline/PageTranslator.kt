@@ -426,7 +426,8 @@ class PageTranslator(
 
     private suspend fun translateRaw(code: String, text: String, glossary: List<GlossaryEntry>): TranslationTrace {
         if (text.isBlank()) return TranslationTrace(text, "", "", "", engine.name)
-        val prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
+        var prepared = Glossary.applyBefore(TextNormalizer.prepareForTranslation(text, code), glossary)
+        if (code == "ja") prepared = Glossary.applyBefore(prepared, Glossary.BUILTIN_JA_PLACES)
         val r = engine.translateDetailed(code, prepared)
         return TranslationTrace(text, prepared, r.output, Glossary.applyAfter(r.output, glossary), r.method, r.pivot, r.lostNames)
     }

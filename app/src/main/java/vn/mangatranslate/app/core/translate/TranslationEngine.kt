@@ -10,6 +10,7 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.tasks.await
+import vn.mangatranslate.app.core.util.TextNormalizer
 
 /**
  * Dịch sang tiếng Việt, miễn phí, offline sau khi tải mô hình.
@@ -97,8 +98,11 @@ class TranslationEngine(private val context: Context? = null) {
 
     private suspend fun translateJapanese(text: String, mode: JaMode): Result {
         val marian = if (mode == JaMode.OPUS_PIVOT) opusOrNull() else null
-        val english = marian?.translate(text)?.text
-            ?: translator(TranslateLanguage.JAPANESE, TranslateLanguage.ENGLISH).translate(text).await()
+        // ML Kit Nhật→Anh hiểu "ゴールキーパー" tốt hơn "GK"; Opus-MT thì ngược lại (đo trên trang 006).
+        val englishRaw = marian?.translate(text)?.text
+            ?: translator(TranslateLanguage.JAPANESE, TranslateLanguage.ENGLISH)
+                .translate(TextNormalizer.expandSportsAbbreviations(text)).await()
+        val english = TextNormalizer.expandEnglishSportsAbbreviations(englishRaw)
         val (masked, names) = RomajiNames.mask(english)
         val vi = translator(TranslateLanguage.ENGLISH, TranslateLanguage.VIETNAMESE).translate(masked).await()
         val (restored, lost) = RomajiNames.restore(vi, names)

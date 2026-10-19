@@ -83,5 +83,9 @@ class CandidatePolicyTest {
         // Chú thích ngang cuối trang: 1 "cột" rộng 421px, 1 ô; hoặc 30 cột 1 ô.
         assertTrue(!CandidatePolicy.isVerticalByImage(listOf(Triple(421, 30, 1))))
         assertTrue(!CandidatePolicy.isVerticalByImage(List(30) { Triple(19, 20, 1) }))
+        // Dải ngang trên trang 006: 30 cột, chỉ 2 cột 2 ô (có một cột cao) → vẫn là chữ ngang.
+        assertTrue(!CandidatePolicy.isVerticalByImage(List(28) { Triple(19, 20, 1) } + listOf(Triple(10, 40, 2), Triple(10, 40, 2))))
+        // Vùng #7 thật: 2/4/4/4/4/1/1 → chữ dọc.
+        assertTrue(CandidatePolicy.isVerticalByImage(listOf(2, 4, 4, 4, 4, 1, 1).map { Triple(36, it * 40, it) }))
     }
 }

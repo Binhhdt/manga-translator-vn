@@ -122,7 +122,9 @@ class DiagnosticsTest {
             )
             translatorDirect.downloadModelIfNeeded(DownloadConditions.Builder().build()).await()
             for (s in sentences) {
-                val prepNew = TextNormalizer.prepareForTranslation(s, "ja")
+                val prepNew = vn.mangatranslate.app.core.translate.Glossary.applyBefore(
+                    TextNormalizer.prepareForTranslation(s, "ja"), vn.mangatranslate.app.core.translate.Glossary.BUILTIN_JA_PLACES
+                )
                 val newR = engine.translateDetailed("ja", prepNew, TranslationEngine.JaMode.OPUS_PIVOT)
                 emit("«$s»")
                 emit("    MỚI (${newR.method}): Anh «${newR.pivot}» → «${newR.output}»${if (newR.lostNames.isNotEmpty()) " mất tên ${newR.lostNames}" else ""}")

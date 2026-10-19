@@ -55,10 +55,9 @@ object TextNormalizer {
                 t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC)
                 t = removeSpacesBetweenCjk(t)
                 t = normalizeEllipsis(t)
-                if (langCode == "ja") {
-                    t = expandSportsAbbreviations(t)
-                    t = katakanaEmphasisToKanji(t)
-                }
+                // Viết tắt (GK, FW…) KHÔNG đổi ở đây: đo thật cho thấy Opus-MT dịch "GK" đúng nhưng dịch
+                // "ゴールキーパー" thành "Gorkeyper". TranslationEngine xử lý viết tắt theo từng bộ dịch.
+                if (langCode == "ja") t = katakanaEmphasisToKanji(t)
             }
         }
         return t
@@ -113,6 +112,18 @@ object TextNormalizer {
         for ((kata, plain) in KATAKANA_EMPHASIS.entries.sortedByDescending { it.key.length }) {
             out = Regex("(?<![\\p{IsKatakana}ー])" + Regex.escape(kata) + "(?![\\p{IsKatakana}ー])").replace(out, plain)
         }
+        return out
+    }
+
+    /** Viết tắt bóng đá trong câu TIẾNG ANH trung gian → từ đầy đủ để bước Anh→Việt dịch đúng ("GK" → "goalkeeper"). */
+    private val ENGLISH_SPORTS = mapOf(
+        "GK" to "goalkeeper", "FW" to "forward", "MF" to "midfielder", "DF" to "defender",
+        "PK" to "penalty kick", "FK" to "free kick", "CK" to "corner kick"
+    )
+
+    fun expandEnglishSportsAbbreviations(t: String): String {
+        var out = t
+        for ((abbr, full) in ENGLISH_SPORTS) out = Regex("(?<![A-Za-z])$abbr(?![A-Za-z])").replace(out, full)
         return out
     }
 

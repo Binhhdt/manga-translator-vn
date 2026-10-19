@@ -49,6 +49,9 @@ object CandidatePolicy {
         if (cells < 2) return false
         val tall = columnShapes.count { (w, h, n) -> n >= 2 && h > 1.5f * w }
         val singleWide = columnShapes.size == 1 && columnShapes[0].let { (w, h, _) -> w > h }
-        return tall >= 1 && !singleWide
+        // Dòng chữ NGANG cũng bị tách thành nhiều "cột" 1 ô (mỗi ký tự một cột). Đo trên trang 006: dải ngang
+        // cho 30 cột, chỉ 2 cột có ≥ 2 ô. Chữ dọc thật: đa số cột có ≥ 2 ô.
+        val multiCell = columnShapes.count { it.third >= 2 }
+        return tall >= 1 && !singleWide && multiCell * 2 >= columnShapes.size
     }
 }
