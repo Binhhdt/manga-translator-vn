@@ -22,8 +22,10 @@ OCR và dịch dùng Google ML Kit chạy trên máy. Chỉ lần đầu dịch 
      git push -u origin main
      ```
 3. Mở tab **Actions** của repository → workflow **Build APK** tự chạy (hoặc bấm **Run workflow**). Mất khoảng 5–10 phút.
-4. Khi có dấu ✓ xanh, bấm vào lần chạy đó → kéo xuống mục **Artifacts** → tải **MangaTranslateVN-debug-apk** (tệp .zip).
-5. Giải nén, chép `app-debug.apk` vào điện thoại, mở để cài (cho phép "Cài ứng dụng không rõ nguồn gốc" khi được hỏi).
+4. Khi có dấu ✓ xanh, vào trang repo → mục **Releases** (cột bên phải) → bản **"APK debug mới nhất"** → tải **MangaTranslateVN-debug.apk**.
+   (Có thể mở trực tiếp trên điện thoại khi đã đăng nhập GitHub; mỗi lần build bản này được thay bằng bản mới.)
+   Đường phụ: trong lần chạy Actions, mục **Artifacts** — chỉ có khi tài khoản còn hạn mức lưu trữ Artifacts.
+5. Mở tệp APK để cài (cho phép "Cài ứng dụng không rõ nguồn gốc" khi được hỏi).
 
 Lưu ý: APK debug được ký bằng khóa debug tạo ngẫu nhiên mỗi lần build trên GitHub, nên khi cài bản mới có thể phải **gỡ bản cũ trước**. Giai đoạn 5 sẽ thêm khóa ký cố định.
 
