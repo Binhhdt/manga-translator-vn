@@ -546,12 +546,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ---------------------------------------------------------------- chẩn đoán
 
     private fun openTool(screen: Screen) = _state.update {
-        val from = if (it.screen == Screen.DEBUG || it.screen == Screen.MT_TEST) it.screenBeforeTool else it.screen
+        val from = if (it.screen == Screen.DEBUG || it.screen == Screen.MT_TEST || it.screen == Screen.CHATGPT) it.screenBeforeTool else it.screen
         it.copy(screenBeforeTool = from, screen = screen)
     }
 
     fun openDebug() = openTool(Screen.DEBUG)
     fun openMtTest() = openTool(Screen.MT_TEST)
+    fun openChatGpt() = openTool(Screen.CHATGPT)
     fun closeTool() = _state.update { it.copy(screen = it.screenBeforeTool) }
 
     /** Trạng thái vẽ của một vùng, dùng trong màn hình DEBUG. */

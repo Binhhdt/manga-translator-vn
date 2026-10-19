@@ -104,6 +104,7 @@ fun HomeScreen(state: UiState, vm: MainViewModel) {
             ) {}
             HomeButton("7. Cài đặt", "Ngôn ngữ nguồn, xưng hô, kiểu chữ, tải mô hình dịch") { vm.openSettings() }
             HomeButton("Kiểm tra bộ dịch", "Gõ chữ Nhật/Trung/Hàn/Anh để thử bộ dịch, không qua OCR") { vm.openMtTest() }
+            HomeButton("Thử ChatGPT (thử nghiệm)", "Đăng nhập ChatGPT Plus, gửi một câu hoặc một ảnh để kiểm tra kết nối") { vm.openChatGpt() }
 
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

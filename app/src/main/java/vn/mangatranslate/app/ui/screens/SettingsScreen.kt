@@ -163,6 +163,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 FilledTonalButton(onClick = vm::openDebug) { Text("DEBUG vùng chữ") }
                 FilledTonalButton(onClick = vm::openMtTest) { Text("Kiểm tra bộ dịch") }
             }
+            FilledTonalButton(onClick = vm::openChatGpt) { Text("Thử ChatGPT (đăng nhập, gửi chữ/ảnh)") }
             Hint("DEBUG: xem ảnh cắt, chữ OCR nguyên vẹn, văn bản gửi vào bộ dịch và kết quả thô của từng vùng ở trang đang mở. Kiểm tra bộ dịch: gõ chữ Nhật để thử bộ dịch không qua OCR.")
 
             Section("Định dạng khi lưu ảnh")

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Chỉ dùng để tải mô hình dịch ML Kit lần đầu. Dịch và OCR chạy trên máy. -->
+    <!-- Tải mô hình ML Kit lần đầu; màn hình "Thử ChatGPT" (tùy chọn) gọi auth.openai.com / api.openai.com. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!-- Chỉ Android 8.0–9 (API 26–28) cần quyền này để lưu ảnh vào Pictures/. Android 10+ dùng MediaStore, không cần quyền. -->

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import vn.mangatranslate.app.ui.screens.ChatGptTestScreen
 import vn.mangatranslate.app.ui.screens.DebugScreen
 import vn.mangatranslate.app.ui.screens.HomeScreen
 import vn.mangatranslate.app.ui.screens.MtTestScreen
@@ -34,5 +35,6 @@ private fun AppRoot(vm: MainViewModel = viewModel()) {
         Screen.SETTINGS -> SettingsScreen(state, vm)
         Screen.DEBUG -> DebugScreen(state, vm)
         Screen.MT_TEST -> MtTestScreen(state, vm)
+        Screen.CHATGPT -> ChatGptTestScreen(vm)
     }
 }

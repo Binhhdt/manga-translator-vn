@@ -12,8 +12,8 @@ android {
         applicationId = "vn.mangatranslate.app"
         minSdk = 26          // Android 8.0
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.2.0-opus-mt-ocr-doc"
+        versionCode = 6
+        versionName = "0.3.0-chatgpt-test"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
