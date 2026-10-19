@@ -20,7 +20,8 @@ from onnxruntime.quantization import QuantType, quantize_dynamic
 REPO = sys.argv[1]
 OUT = sys.argv[2]
 BEAMS = int(os.environ.get("BEAMS", "4"))
-PER_CHANNEL = os.environ.get("QUANT", "per_channel") == "per_channel"
+# Đo thật: int8 per-channel làm mô hình chỉ sinh "...." → dùng int8 per-tensor.
+PER_CHANNEL = os.environ.get("QUANT", "per_tensor") == "per_channel"
 TEST = [
     "さわらないで", "黒崎", "神奈川 GK 負傷!!", "腕を骨折", "大丈夫かよ", "こんなブザマはさらさなかったのによ",
     "黒崎おいっ大丈夫かよォ…", "オーイ救急班―", "こりゃみごとに折れてるな―…",

@@ -152,7 +152,11 @@ class SentencePiece private constructor(
             when (wire) {
                 0 -> varint()
                 1 -> pos += 8
-                2 -> pos += varint().toInt()
+                2 -> {
+                    // Không viết "pos += varint()": Kotlin đọc pos cũ TRƯỚC khi varint() dịch con trỏ → đọc lệch.
+                    val len = varint().toInt()
+                    pos += len
+                }
                 5 -> pos += 4
                 else -> error("Kiểu protobuf không hỗ trợ: $wire")
             }

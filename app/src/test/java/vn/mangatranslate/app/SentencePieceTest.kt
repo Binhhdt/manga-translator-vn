@@ -57,3 +57,23 @@ class SentencePieceTest {
         assertEquals("Don't touch me.", SentencePiece.decode(listOf("▁Don", "'", "t", "▁touch", "▁me", ".")))
     }
 }
+
+class SentencePieceSkipTest {
+    /** Tệp .spm thật có trainer_spec (trường 2, kiểu độ dài) phải bỏ qua đúng — lỗi cũ: đọc lệch, "kiểu 7". */
+    @Test
+    fun skipsLengthDelimitedFieldsCorrectly() {
+        val out = java.io.ByteArrayOutputStream()
+        // trường 2 (trainer_spec), độ dài 300 (varint 2 byte), nội dung rác
+        out.write(0x12); out.write(0xAC); out.write(0x02); out.write(ByteArray(300) { 7 })
+        // một piece "▁a" điểm -1
+        val inner = java.io.ByteArrayOutputStream()
+        val pb = "▁a".toByteArray(Charsets.UTF_8)
+        inner.write(0x0A); inner.write(pb.size); inner.write(pb)
+        inner.write(0x15); val bits = (-1f).toRawBits(); for (i in 0 until 4) inner.write((bits ushr (8 * i)) and 0xFF)
+        inner.write(0x18); inner.write(1)
+        val ib = inner.toByteArray()
+        out.write(0x0A); out.write(ib.size); out.write(ib)
+        val sp = SentencePiece.parse(out.toByteArray())
+        assertEquals(listOf("▁a"), sp.encode("a"))
+    }
+}
