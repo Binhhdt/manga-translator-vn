@@ -128,6 +128,8 @@ fun ReaderScreen(state: UiState, vm: MainViewModel) {
                 EditRegionDialog(
                     region = region,
                     overflow = id in state.overflowIds,
+                    hidden = id in state.hiddenIds,
+                    maskNote = state.maskNotes[id],
                     onDismiss = vm::dismissRegionDialog,
                     onSave = { src, tr, again -> vm.saveRegionEdit(id, src, tr, again) },
                     onRetranslate = { src -> vm.retranslateRegion(id, src) },
@@ -197,8 +199,12 @@ private fun StatusBanner(state: UiState, hasTranslation: Boolean, modifier: Modi
     val text = when {
         state.mode == ReaderMode.ADD_REGION -> "Kéo một ngón tay để khoanh vùng chữ cần nhận dạng. (Thoát: nhấn lại “Thêm vùng”)"
         state.mode == ReaderMode.EDIT -> "Chạm vào khung để kiểm tra/sửa. Xanh: ổn · Cam: cần kiểm tra · Đỏ: tràn khung · Lục: khoanh tay"
+        state.hiddenIds.isNotEmpty() && state.showTranslated ->
+            "⚠ ${state.hiddenIds.size} bản dịch đáng ngờ chưa vẽ lên ảnh" +
+                (if (state.overflowIds.isNotEmpty()) ", ${state.overflowIds.size} vùng không đủ chỗ" else "") +
+                " — mở “Sửa chữ” để kiểm tra."
         state.overflowIds.isNotEmpty() && state.showTranslated ->
-            "⚠ ${state.overflowIds.size} vùng chữ không vừa khung — hãy rút ngắn câu trong “Sửa chữ”."
+            "⚠ ${state.overflowIds.size} vùng không đủ chỗ nên chưa vẽ — rút ngắn câu trong “Sửa chữ”."
         state.regions.any { it.needsReview } && state.showTranslated ->
             "⚠ ${state.regions.count { it.needsReview }} vùng cần kiểm tra — mở “Sửa chữ” (khung cam)."
         hasTranslation && !state.showTranslated -> "Đang xem bản gốc"

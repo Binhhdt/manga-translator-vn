@@ -97,8 +97,12 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
             SwitchRow("Viền chữ", s.outline) { v -> vm.updateSettings { it.copy(outline = v) } }
             SwitchRow("Chữ đậm", s.bold) { v -> vm.updateSettings { it.copy(bold = v) } }
-            SwitchRow("Xóa sạch chữ gốc trong bong bóng trắng", s.cleanBubbles) { v -> vm.updateSettings { it.copy(cleanBubbles = v) } }
-            Hint("Chỉ áp dụng cho bong bóng có viền khép kín, nền sáng: mọi nét bị bong bóng bao kín (chữ, furigana) được tô màu nền; viền và hình vẽ bên ngoài không bị đụng tới.")
+            SwitchRow("Không vẽ bản dịch đáng ngờ lên ảnh", s.hideUnverified) { v -> vm.updateSettings { it.copy(hideUnverified = v) } }
+            Hint("Vùng “Cần kiểm tra” chỉ được vẽ sau khi bạn mở “Sửa chữ”, kiểm tra và bấm “Lưu bản dịch”. Giữ nguyên ảnh gốc thay vì vẽ câu vô nghĩa.")
+            SwitchRow("Xóa chữ gốc trong bong bóng trắng (thử nghiệm)", s.cleanBubbles) { v -> vm.updateSettings { it.copy(cleanBubbles = v) } }
+            Hint("Mặc định TẮT. Chỉ xóa nét chữ trong khung chữ thực tế của bong bóng khép kín; mask bất thường sẽ bị từ chối. Ảnh gốc không bao giờ bị sửa — bấm “Bản gốc” để so sánh.")
+            SwitchRow("Chế độ DEBUG: hiện mask xóa chữ (đỏ)", s.debugMask) { v -> vm.updateSettings { it.copy(debugMask = v) } }
+            Hint("Tô đỏ các điểm sẽ bị xóa và viền xanh vùng đặt chữ, không xóa thật. Dùng để kiểm tra trước khi bật xóa chữ.")
             SwitchRow("Lớp phủ nền sáng (vùng không xóa sạch được)", s.coverBackground) { v -> vm.updateSettings { it.copy(coverBackground = v) } }
             var opacity by remember(s.overlayOpacity) { mutableFloatStateOf(s.overlayOpacity.toFloat()) }
             Text("Độ che lớp phủ: ${opacity.toInt()}%", modifier = Modifier.padding(top = 4.dp))

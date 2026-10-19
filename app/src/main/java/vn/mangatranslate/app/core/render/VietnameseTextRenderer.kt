@@ -10,6 +10,7 @@ import android.os.Build
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.util.Log
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.BubbleShape
 import vn.mangatranslate.app.core.model.RenderStyle
@@ -34,86 +35,200 @@ import kotlin.math.min
  */
 class VietnameseTextRenderer {
 
+    private companion object {
+        const val TAG = "MangaRender"
+    }
+
     private val regular: Typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     private val bold: Typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
 
-    class Output(val bitmap: Bitmap, val overflowIds: Set<Int>)
+    /**
+     * @param overflowIds vùng không đủ chỗ → KHÔNG vẽ (giữ nguyên ảnh gốc), cần người dùng rút ngắn câu.
+     * @param hiddenIds vùng có bản dịch đáng ngờ chưa xác nhận → không vẽ.
+     * @param maskRejected vùng bị từ chối xóa chữ vì mask bất thường (kèm lý do).
+     * @param failedIds vùng gặp lỗi khi vẽ (đã bỏ qua, các vùng khác vẫn được vẽ).
+     * @param changedOutside số điểm ảnh bị đổi NGOÀI vùng cho phép (phải bằng 0; -1 = ảnh quá lớn, không kiểm).
+     */
+    class Output(
+        val bitmap: Bitmap,
+        val overflowIds: Set<Int>,
+        val hiddenIds: Set<Int> = emptySet(),
+        val maskRejected: Map<Int, String> = emptyMap(),
+        val failedIds: Set<Int> = emptySet(),
+        val changedOutside: Int = 0
+    )
 
     private class Fit(val layout: StaticLayout, val area: BoxF, val size: Float, val fits: Boolean)
 
+    private class Ctx(
+        val original: Bitmap,
+        val out: Bitmap,
+        val canvas: Canvas,
+        val style: RenderStyle,
+        val fillPaint: Paint,
+        val textPaint: TextPaint,
+        val allowed: MutableList<RenderSafety.Rect>,
+        val overflow: MutableSet<Int>,
+        val hidden: MutableSet<Int>,
+        val maskRejected: MutableMap<Int, String>
+    )
+
+    /** Vẽ trên BẢN SAO của ảnh gốc; [original] không bao giờ bị sửa. */
     fun render(original: Bitmap, regions: List<TextRegion>, renderStyle: RenderStyle): Output {
         val out = original.copy(Bitmap.Config.ARGB_8888, true)
             ?: throw IllegalStateException("Không đủ bộ nhớ để tạo ảnh kết quả.")
-        val canvas = Canvas(out)
-        val w = out.width.toFloat()
-        val h = out.height.toFloat()
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         fillPaint.style = Paint.Style.FILL
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
         textPaint.typeface = if (renderStyle.bold) bold else regular
         textPaint.isSubpixelText = true
-        val overflow = HashSet<Int>()
-
+        val ctx = Ctx(
+            original, out, Canvas(out), renderStyle, fillPaint, textPaint,
+            ArrayList(), HashSet(), HashSet(), HashMap()
+        )
+        val failed = HashSet<Int>()
         for (r in regions) {
-            if (!r.enabled) continue
-            val text = r.translatedText.trim()
-            if (text.isEmpty()) continue
-
-            var background = Color.WHITE
-            var area: BoxF
-            val limit: BoxF
-            var cleaned = false
-            val shape = r.bubble
-            if (shape != null && renderStyle.cleanBubbles) {
-                val bg = sampleBubbleBackground(original, shape)
-                if (luminance(bg) >= 0.7) {
-                    cleanBubble(out, shape, bg)
-                    background = bg
-                    cleaned = true
-                }
+            // Mỗi vùng độc lập: lỗi của một vùng không làm hỏng cả trang.
+            try {
+                drawRegion(ctx, r)
+            } catch (e: Exception) {
+                Log.w(TAG, "Bỏ qua vẽ vùng #${r.id}: ${e.message}", e)
+                failed += r.id
             }
-
-            if (cleaned && shape != null) {
-                area = shape.inner
-                limit = shape.box
-            } else {
-                val pad = (r.lineHeight * 0.35f).coerceIn(3f, 24f)
-                val cover = (r.layoutBox ?: r.box).union(r.box.expand(pad)).clampTo(w, h)
-                if (cover.width < 2f || cover.height < 2f) continue
-                val bg = sampleBackground(original, cover)
-                val overlay = if (luminance(bg) >= 0.6) bg else Color.WHITE
-                val alpha = (renderStyle.overlayOpacity.coerceIn(0, 100) * 255) / 100
-                if (renderStyle.coverBackground && alpha > 0) {
-                    fillPaint.color = (alpha shl 24) or (overlay and 0x00FFFFFF)
-                    canvas.drawRoundRect(RectF(cover.left, cover.top, cover.right, cover.bottom), pad, pad, fillPaint)
-                    background = blend(bg, overlay, alpha / 255f)
-                } else {
-                    background = bg
-                }
-                area = widenNarrow(cover, r.box, w)
-                limit = area.expand(area.width * 0.1f, area.height * 0.2f).clampTo(w, h)
-            }
-
-            // Khoảng đệm với viền bong bóng.
-            val inset = min(area.width, area.height) * 0.06f
-            area = area.expand(-inset)
-            val (textColor, outlineColor) = colorsFor(renderStyle.textColorMode, background)
-            val fit = fit(text, r, area, limit, textPaint, renderStyle, w)
-            if (!fit.fits) overflow += r.id
-            drawLayout(canvas, fit, textPaint, textColor, outlineColor, renderStyle.outline)
         }
-        return Output(out, overflow)
+        val changed = verifyUnchangedOutside(original, out, ctx.allowed)
+        if (changed > 0) Log.e(TAG, "CẢNH BÁO: $changed điểm ảnh bị đổi ngoài vùng cho phép")
+        return Output(out, ctx.overflow, ctx.hidden, ctx.maskRejected, failed, changed)
     }
 
-    /** Cột chữ dọc hẹp: nới ngang vừa phải để chữ Việt nằm ngang, nhưng không quá 2.2 lần bề rộng ban đầu. */
-    private fun widenNarrow(cover: BoxF, textBox: BoxF, imageWidth: Float): BoxF {
-        if (cover.width >= cover.height * 0.5f) return cover
-        val targetW = min(imageWidth, min(cover.height * 0.6f, cover.width * 2.2f))
-        var left = textBox.centerX - targetW / 2f
-        var right = textBox.centerX + targetW / 2f
-        if (left < 0f) { right -= left; left = 0f }
-        if (right > imageWidth) { left -= right - imageWidth; right = imageWidth }
-        return BoxF(max(0f, left), cover.top, right, cover.bottom)
+    private fun drawRegion(c: Ctx, r: TextRegion) {
+        if (!r.enabled) return
+        val text = r.translatedText.trim()
+        if (text.isEmpty()) return
+        if (c.style.hideUnverified && r.unverified) {
+            c.hidden += r.id
+            return
+        }
+        val w = c.out.width.toFloat()
+        val h = c.out.height.toFloat()
+        val pad = (r.lineHeight * 0.35f).coerceIn(3f, 24f)
+        val shape = r.bubble
+
+        // 1) Xác định vùng che và vùng đặt chữ — KHÔNG vẽ gì cho tới khi biết chữ vừa khung.
+        val cover: BoxF
+        var area: BoxF
+        val limit: BoxF
+        if (shape != null) {
+            cover = intersect(r.box.expand(pad).union(shape.inner), shape.box)?.clampTo(w, h) ?: return
+            area = shape.inner
+            limit = intersect(shape.inner.expand(shape.inner.width * 0.08f, shape.inner.height * 0.08f), shape.box) ?: shape.inner
+        } else {
+            cover = (r.layoutBox ?: r.box).union(r.box.expand(pad)).clampTo(w, h)
+            area = cover
+            limit = cover // không bao giờ vẽ chữ ra ngoài vùng đã che
+        }
+        if (cover.width < 2f || cover.height < 2f) return
+        val inset = min(area.width, area.height) * 0.06f
+        area = area.expand(-inset)
+
+        // 2) Xóa chữ trong bong bóng: chỉ khi được bật, mask giới hạn trong khung chữ thực tế và qua kiểm tra an toàn.
+        var cleanRect: RenderSafety.Rect? = null
+        var cleanColor = Color.WHITE
+        if (shape != null && (c.style.cleanBubbles || c.style.debugMask)) {
+            val allowedBox = intersect(r.box.expand(r.lineHeight * 0.6f), shape.box)?.clampTo(w, h)
+            if (allowedBox != null) {
+                val rect = toRect(allowedBox)
+                val mask = countMask(shape, rect)
+                val problem = RenderSafety.maskProblem(mask.toLong(), rect.area, w.toLong() * h.toLong())
+                val bg = sampleBubbleBackground(c.original, shape)
+                when {
+                    problem != null -> c.maskRejected[r.id] = problem
+                    luminance(bg) < 0.7 -> c.maskRejected[r.id] = "Nền bong bóng tối — không xóa chữ, dùng lớp phủ"
+                    else -> { cleanRect = rect; cleanColor = bg }
+                }
+            }
+        }
+
+        val background: Int
+        val overlayColor: Int
+        val alpha: Int
+        if (cleanRect != null && !c.style.debugMask) {
+            background = cleanColor
+            overlayColor = 0
+            alpha = 0
+        } else {
+            val bg = sampleBackground(c.original, cover)
+            overlayColor = if (luminance(bg) >= 0.6) bg else Color.WHITE
+            alpha = if (c.style.coverBackground) (c.style.overlayOpacity.coerceIn(0, 100) * 255) / 100 else 0
+            background = if (alpha > 0) blend(bg, overlayColor, alpha / 255f) else bg
+        }
+
+        val fit = fit(text, r, area, limit, c.textPaint, c.style, w)
+        if (!fit.fits) {
+            // Không đủ chỗ: giữ nguyên ảnh gốc, đánh dấu để người dùng rút ngắn câu.
+            c.overflow += r.id
+            return
+        }
+
+        // 3) Vẽ.
+        if (c.style.debugMask) {
+            cleanRect?.let { paintMask(c.out, shape!!, it, debug = true, color = 0); c.allowed += it }
+            if (cleanRect == null) {
+                if (shape != null) {
+                    paintInsideBubble(c.out, shape, toRect(cover), Color.RED, 0x55)
+                } else {
+                    c.fillPaint.color = 0x55FF0000
+                    c.canvas.drawRect(RectF(cover.left, cover.top, cover.right, cover.bottom), c.fillPaint)
+                }
+                c.allowed += toRect(cover)
+            }
+        } else if (cleanRect != null) {
+            paintMask(c.out, shape!!, cleanRect!!, debug = false, color = cleanColor)
+            c.allowed += cleanRect!!
+        } else if (alpha > 0) {
+            if (shape != null) {
+                // Bong bóng khép kín: chỉ phủ các điểm BÊN TRONG bong bóng — góc khung chữ nhật không đè lên viền/tranh.
+                paintInsideBubble(c.out, shape, toRect(cover), overlayColor, alpha)
+            } else {
+                c.fillPaint.color = (alpha shl 24) or (overlayColor and 0x00FFFFFF)
+                c.canvas.drawRoundRect(RectF(cover.left, cover.top, cover.right, cover.bottom), pad, pad, c.fillPaint)
+            }
+            c.allowed += toRect(cover)
+        }
+        val (textColor, outlineColor) = colorsFor(c.style.textColorMode, background)
+        drawLayout(c.canvas, fit, c.textPaint, textColor, outlineColor, c.style.outline)
+        val stroke = max(1.5f, fit.size * 0.16f) + 2f
+        c.allowed += toRect(fit.area.expand(stroke))
+        if (c.style.debugMask) {
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            p.style = Paint.Style.STROKE
+            p.strokeWidth = 2f
+            p.color = Color.BLUE
+            c.canvas.drawRect(RectF(fit.area.left, fit.area.top, fit.area.right, fit.area.bottom), p)
+            c.allowed += toRect(fit.area.expand(3f))
+        }
+    }
+
+    private fun intersect(a: BoxF, b: BoxF): BoxF? {
+        val l = max(a.left, b.left)
+        val t = max(a.top, b.top)
+        val r = min(a.right, b.right)
+        val btm = min(a.bottom, b.bottom)
+        return if (r > l && btm > t) BoxF(l, t, r, btm) else null
+    }
+
+    private fun toRect(b: BoxF) = RenderSafety.Rect(floor(b.left).toInt(), floor(b.top).toInt(), ceil(b.right).toInt(), ceil(b.bottom).toInt())
+
+    /** So sánh ảnh gốc và ảnh xử lý; chỉ kiểm với ảnh ≤ 12 MP để không tràn RAM. */
+    private fun verifyUnchangedOutside(original: Bitmap, out: Bitmap, allowed: List<RenderSafety.Rect>): Int {
+        val w = original.width
+        val h = original.height
+        if (w.toLong() * h > 12_000_000L) return -1
+        val a = IntArray(w * h)
+        val b = IntArray(w * h)
+        original.getPixels(a, 0, w, 0, 0, w, h)
+        out.getPixels(b, 0, w, 0, 0, w, h)
+        return RenderSafety.changedOutside(a, b, w, h, allowed)
     }
 
     private fun fit(
@@ -202,26 +317,53 @@ class VietnameseTextRenderer {
         canvas.restore()
     }
 
-    /** Tô màu nền lên mọi điểm bị bong bóng bao kín (nét chữ, furigana). Viền bong bóng không bị đụng tới. */
-    private fun cleanBubble(out: Bitmap, shape: BubbleShape, bg: Int) {
+    /** Phủ màu [color] với độ đậm [alpha] (0–255) lên các điểm của [rect] nằm bên trong bong bóng (cách viền ≥ 1 điểm). */
+    private fun paintInsideBubble(out: Bitmap, shape: BubbleShape, rect: RenderSafety.Rect, color: Int, alpha: Int) {
+        val r = rect.clamp(out.width, out.height)
+        if (r.width <= 0 || r.height <= 0) return
         val b = shape.mask
         val s = shape.scale
-        val l = floor(b.left / s).toInt().coerceIn(0, out.width - 1)
-        val t = floor(b.top / s).toInt().coerceIn(0, out.height - 1)
-        val r = ceil(b.right / s).toInt().coerceIn(l + 1, out.width)
-        val btm = ceil(b.bottom / s).toInt().coerceIn(t + 1, out.height)
-        val w = r - l
-        val h = btm - t
-        val px = IntArray(w * h)
-        out.getPixels(px, 0, w, l, t, w, h)
-        var changed = false
-        for (y in 0 until h) for (x in 0 until w) {
-            if (b.isHoleDilated(((l + x) * s).toInt(), ((t + y) * s).toInt())) {
-                px[y * w + x] = bg
-                changed = true
+        val a = alpha.coerceIn(0, 255) / 255f
+        val px = IntArray(r.width * r.height)
+        out.getPixels(px, 0, r.width, r.left, r.top, r.width, r.height)
+        for (y in 0 until r.height) for (x in 0 until r.width) {
+            if (b.isInteriorEroded(((r.left + x) * s).toInt(), ((r.top + y) * s).toInt())) {
+                val i = y * r.width + x
+                px[i] = blend(px[i], color, a)
             }
         }
-        if (changed) out.setPixels(px, 0, w, l, t, w, h)
+        out.setPixels(px, 0, r.width, r.left, r.top, r.width, r.height)
+    }
+
+    /** Số điểm mask (nét chữ bị bong bóng bao kín) nằm trong [rect] (tọa độ ảnh gốc). */
+    private fun countMask(shape: BubbleShape, rect: RenderSafety.Rect): Int {
+        val b = shape.mask
+        val s = shape.scale
+        var n = 0
+        for (y in rect.top until rect.bottom) for (x in rect.left until rect.right) {
+            if (b.isHoleDilated((x * s).toInt(), (y * s).toInt())) n++
+        }
+        return n
+    }
+
+    /**
+     * Xóa (tô màu nền) hoặc tô đỏ (DEBUG) các điểm mask, CHỈ trong [rect] = khung chữ thực tế nới nhẹ.
+     * Viền bong bóng và mọi thứ ngoài [rect] không bị đụng tới.
+     */
+    private fun paintMask(out: Bitmap, shape: BubbleShape, rect: RenderSafety.Rect, debug: Boolean, color: Int) {
+        val r = rect.clamp(out.width, out.height)
+        if (r.width <= 0 || r.height <= 0) return
+        val b = shape.mask
+        val s = shape.scale
+        val px = IntArray(r.width * r.height)
+        out.getPixels(px, 0, r.width, r.left, r.top, r.width, r.height)
+        for (y in 0 until r.height) for (x in 0 until r.width) {
+            if (b.isHoleDilated(((r.left + x) * s).toInt(), ((r.top + y) * s).toInt())) {
+                val i = y * r.width + x
+                px[i] = if (debug) blend(px[i], Color.RED, 0.6f) else color
+            }
+        }
+        out.setPixels(px, 0, r.width, r.left, r.top, r.width, r.height)
     }
 
     /** Màu nền bong bóng = trung vị các điểm bên trong bong bóng không thuộc nét chữ. */

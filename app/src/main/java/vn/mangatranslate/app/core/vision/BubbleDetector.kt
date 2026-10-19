@@ -20,9 +20,12 @@ import kotlin.math.min
 class BubbleDetector(
     private val whiteThreshold: Int = 200,
     private val minAreaRatio: Float = 0.0004f,
-    private val maxAreaRatio: Float = 0.2f,
+    /** Bong bóng thoại thật hiếm khi > 6% diện tích trang. Lỗi bản 0.1.2: nền trắng của cả khung tranh (23%) lọt qua. */
+    private val maxAreaRatio: Float = 0.06f,
     private val minInteriorFill: Float = 0.42f,
-    private val maxHoleRatio: Float = 0.6f
+    private val maxHoleRatio: Float = 0.4f,
+    /** Một mảng nét liền (lỗ) lớn hơn tỉ lệ này của bong bóng là HÌNH VẼ (nhân vật, khung thành), không phải chữ. */
+    private val maxHoleComponentRatio: Float = 0.12f
 ) {
 
     /** Một bong bóng, tọa độ theo [GrayImage] đã phân tích. right/bottom là biên loại trừ. */
@@ -156,20 +159,21 @@ class BubbleDetector(
         val maxArea = maxAreaRatio * n
         val bubbles = ArrayList<Bubble>()
         for (label in 1 until next) {
-            // Không loại vùng chạm mép ảnh: bong bóng ở sát mép trang vẫn hợp lệ.
-            // Lề trắng của trang thì quá lớn hoặc quá "rỗng" nên bị loại bởi điều kiện diện tích / độ đặc.
             if (count[label] < minArea) continue
+            // Vùng trắng lớn chạm mép ảnh = lề trang / nền khung tranh, không phải bong bóng.
+            if (border[label] == 1 && count[label] > 0.01f * n) continue
             val bl = minX[label]
             val bt = minY[label]
             val bw = maxX[label] - bl + 1
             val bh = maxY[label] - bt + 1
-            if (bw < 10 || bh < 10 || bw.toFloat() * bh > maxArea * 1.6f) continue
-            buildBubble(labels, w, label, bl, bt, bw, bh)?.let { bubbles += it }
+            if (bw < 10 || bh < 10 || bw.toFloat() * bh > maxArea * 2f) continue
+            if (bw > 0.5f * w || bh > 0.5f * h) continue
+            buildBubble(labels, w, label, bl, bt, bw, bh, maxArea)?.let { bubbles += it }
         }
         return Result(w, h, labels, bubbles)
     }
 
-    private fun buildBubble(labels: IntArray, w: Int, label: Int, bl: Int, bt: Int, bw: Int, bh: Int): Bubble? {
+    private fun buildBubble(labels: IntArray, w: Int, label: Int, bl: Int, bt: Int, bw: Int, bh: Int, maxArea: Float): Bubble? {
         val size = bw * bh
         val outside = BooleanArray(size)
         val queue = IntArray(size)
@@ -211,8 +215,10 @@ class BubbleDetector(
                 holeArea++
             }
         }
+        if (interiorArea > maxArea) return null
         if (interiorArea.toFloat() / size < minInteriorFill) return null
         if (holeArea.toFloat() / interiorArea > maxHoleRatio) return null
+        if (hasArtworkHole(holes, bw, bh, interiorArea)) return null
         // Bong bóng thoại luôn chứa nét chữ. Vùng trắng kín không có nét nào bên trong (lòng chữ 口, mắt nhân vật…)
         // không phải bong bóng — nếu giữ lại, chúng "cướp phiếu" khi gán dòng chữ vào bong bóng.
         if (holeArea < max(4, (interiorArea * 0.002f).toInt())) return null
@@ -222,6 +228,43 @@ class BubbleDetector(
             label, bl, bt, bl + bw, bt + bh, interior, holes, interiorArea, holeArea,
             BoxF(bl + inner.left, bt + inner.top, bl + inner.right, bt + inner.bottom)
         )
+    }
+
+    /**
+     * Trong bong bóng thật, "lỗ" là các nét chữ rời rạc, mỗi nét nhỏ. Nếu có một mảng nét liền lớn
+     * (rộng VÀ cao gần nửa vùng, hoặc chiếm > [maxHoleComponentRatio] diện tích) thì đó là hình vẽ bị vùng trắng
+     * bao quanh → không phải bong bóng, tuyệt đối không được xóa.
+     */
+    private fun hasArtworkHole(holes: BooleanArray, bw: Int, bh: Int, interiorArea: Int): Boolean {
+        val seen = BooleanArray(holes.size)
+        val queue = IntArray(holes.size)
+        for (start in holes.indices) {
+            if (!holes[start] || seen[start]) continue
+            var head = 0
+            var tail = 0
+            queue[tail++] = start
+            seen[start] = true
+            var l = Int.MAX_VALUE; var t = Int.MAX_VALUE; var r = -1; var b = -1; var c = 0
+            while (head < tail) {
+                val i = queue[head++]
+                val x = i % bw
+                val y = i / bw
+                c++
+                if (x < l) l = x
+                if (x > r) r = x
+                if (y < t) t = y
+                if (y > b) b = y
+                if (x > 0 && holes[i - 1] && !seen[i - 1]) { seen[i - 1] = true; queue[tail++] = i - 1 }
+                if (x < bw - 1 && holes[i + 1] && !seen[i + 1]) { seen[i + 1] = true; queue[tail++] = i + 1 }
+                if (y > 0 && holes[i - bw] && !seen[i - bw]) { seen[i - bw] = true; queue[tail++] = i - bw }
+                if (y < bh - 1 && holes[i + bw] && !seen[i + bw]) { seen[i + bw] = true; queue[tail++] = i + bw }
+            }
+            val cw = r - l + 1
+            val ch = b - t + 1
+            if (cw > 0.45f * bw && ch > 0.45f * bh) return true
+            if (c > maxHoleComponentRatio * interiorArea) return true
+        }
+        return false
     }
 
     /** Thu nhỏ khung dần quanh tâm bong bóng tới khi ≥ 96% diện tích nằm trong bong bóng. */

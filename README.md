@@ -105,6 +105,21 @@ Kết luận: **giữ ML Kit**, nâng chất lượng bằng OCR đúng (nguyên
 OCR thay thế đáng cân nhắc tiếp theo: **manga-ocr** (Apache-2.0, chuyên chữ dọc + furigana manga, bản lượng tử hóa cho Android
 khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
 
+## 5b. Sự cố bản 0.1.2: xóa mất hình vẽ — nguyên nhân và cách sửa (0.1.3)
+
+- **Nguyên nhân**: bong bóng hình sao hở thông với nền trắng của cả khung tranh; bộ tìm bong bóng coi cả khung tranh
+  (23% trang) là "bong bóng", bước xóa chữ tô trắng mọi thứ bên trong — gồm cầu thủ, sân, khung thành.
+- **Sửa**:
+  1. Bong bóng tối đa 6% trang, không quá nửa chiều rộng/cao trang; vùng trắng lớn chạm mép bị loại;
+     vùng chứa mảng nét lớn (hình vẽ) KHÔNG bao giờ được coi là bong bóng.
+  2. Xóa chữ **mặc định TẮT**. Khi bật: mask chỉ nằm trong khung chữ thực tế (nới 0,6 cỡ chữ), mask bất thường bị từ chối.
+  3. Lớp phủ trong bong bóng chỉ tô điểm bên trong bong bóng; vùng chữ ngoài bong bóng nới tối đa 1 cỡ chữ.
+  4. Sau mỗi lần vẽ, ảnh xử lý được so với ảnh gốc: điểm ảnh đổi ngoài vùng cho phép được báo ngay.
+  5. Chế độ DEBUG tô đỏ mask, viền xanh vùng đặt chữ.
+  6. Ảnh gốc không bao giờ bị sửa (luôn vẽ trên bản sao); "Bản gốc" luôn hiện ảnh nguyên vẹn.
+- **Bản dịch đáng ngờ** (từ lạ, lặp từ, số lạ, OCR lặp chữ…) mặc định KHÔNG được vẽ lên ảnh cho tới khi người dùng
+  kiểm tra và bấm "Lưu bản dịch". Vùng không đủ chỗ cũng không vẽ (không tràn khỏi khung thoại).
+
 ## 6. Giới hạn hiện tại (nói thẳng)
 
 - **Chất lượng dịch**: ML Kit dịch từng câu, không hiểu ngữ cảnh, không biết ai nói với ai. Trung/Nhật/Hàn → Việt đi qua tiếng Anh trung gian nên kém tự nhiên hơn Anh → Việt. Đổi xưng hô chỉ là thay thế theo quy tắc. Hãy coi bản dịch là bản nháp để sửa.
@@ -117,7 +132,7 @@ khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
 
 ## 7. Kiểm thử
 
-**Đã chạy**: 50 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
+**Đã chạy**: 59 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
 tìm bong bóng trên trang giả lập, chữ của hai bong bóng không bị ghép, viền bong bóng không bị coi là chữ, thứ tự cột dọc
 phải→trái, phát hiện furigana, ký tự nhiều nét (二) đếm là một ô, xếp cột thành hàng, khoảng trắng dừng ở viền bong bóng,
 chấm điểm OCR (furigana lẫn vào bị trừ điểm), phát hiện từ lạ trong chính các câu lỗi từ ảnh thử ("buzzma", "ucking"),

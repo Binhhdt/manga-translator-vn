@@ -19,8 +19,10 @@ data class AppSettings(
     val coverBackground: Boolean = true,
     val exportFormat: ExportFormat = ExportFormat.JPG,
     val overlayOpacity: Int = 92,
-    val cleanBubbles: Boolean = true,
-    val glossaryText: String = DEFAULT_GLOSSARY
+    val cleanBubbles: Boolean = false,
+    val glossaryText: String = DEFAULT_GLOSSARY,
+    val hideUnverified: Boolean = true,
+    val debugMask: Boolean = false
 ) {
     fun toRenderStyle() = RenderStyle(
         textColorMode = textColorMode,
@@ -29,7 +31,9 @@ data class AppSettings(
         lineSpacing = lineSpacing,
         coverBackground = coverBackground,
         overlayOpacity = overlayOpacity,
-        cleanBubbles = cleanBubbles
+        cleanBubbles = cleanBubbles,
+        hideUnverified = hideUnverified,
+        debugMask = debugMask
     )
 
     fun glossary(): List<GlossaryEntry> = Glossary.parse(glossaryText)
@@ -59,8 +63,11 @@ class SettingsStore(context: Context) {
             coverBackground = prefs.getBoolean("cover", d.coverBackground),
             exportFormat = enumOr(prefs.getString("format", null), d.exportFormat),
             overlayOpacity = prefs.getInt("overlayOpacity", d.overlayOpacity),
-            cleanBubbles = prefs.getBoolean("cleanBubbles", d.cleanBubbles),
-            glossaryText = prefs.getString("glossary", null) ?: d.glossaryText
+            // Khóa mới: giá trị "bật" của bản 0.1.1–0.1.2 (gây xóa mất hình) không được dùng lại.
+            cleanBubbles = prefs.getBoolean("cleanBubblesV2", d.cleanBubbles),
+            glossaryText = prefs.getString("glossary", null) ?: d.glossaryText,
+            hideUnverified = prefs.getBoolean("hideUnverified", d.hideUnverified),
+            debugMask = prefs.getBoolean("debugMask", d.debugMask)
         )
     }
 
@@ -75,8 +82,10 @@ class SettingsStore(context: Context) {
             .putBoolean("cover", s.coverBackground)
             .putString("format", s.exportFormat.name)
             .putInt("overlayOpacity", s.overlayOpacity)
-            .putBoolean("cleanBubbles", s.cleanBubbles)
+            .putBoolean("cleanBubblesV2", s.cleanBubbles)
             .putString("glossary", s.glossaryText)
+            .putBoolean("hideUnverified", s.hideUnverified)
+            .putBoolean("debugMask", s.debugMask)
             .apply()
     }
 

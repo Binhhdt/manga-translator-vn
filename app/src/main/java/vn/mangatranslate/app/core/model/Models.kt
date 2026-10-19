@@ -60,9 +60,14 @@ data class TextRegion(
     /** Cách OCR đã chọn cho vùng này. */
     val ocrMethod: String = "",
     /** Mã ngôn ngữ nguồn (ja, zh, ko, en). */
-    val sourceLang: String = ""
+    val sourceLang: String = "",
+    /** Người dùng đã xem và bấm "Lưu bản dịch" → được vẽ lên ảnh dù từng bị đánh dấu cần kiểm tra. */
+    val confirmed: Boolean = false
 ) {
     val needsReview: Boolean get() = reviewNotes.isNotEmpty()
+
+    /** Bản dịch đáng ngờ chưa được người dùng xác nhận. */
+    val unverified: Boolean get() = needsReview && !confirmed && !userEdited
 }
 
 /**
@@ -84,6 +89,10 @@ data class RenderStyle(
     val coverBackground: Boolean = true,
     /** Độ che của lớp nền sáng (0–100%) khi không xóa sạch được chữ gốc. */
     val overlayOpacity: Int = 92,
-    /** Xóa sạch chữ gốc trong bong bóng trắng khép kín. */
-    val cleanBubbles: Boolean = true
+    /** Xóa chữ gốc trong bong bóng trắng khép kín. MẶC ĐỊNH TẮT (thử nghiệm) sau lỗi xóa mất hình ở bản 0.1.2. */
+    val cleanBubbles: Boolean = false,
+    /** Không vẽ bản dịch đáng ngờ (cần kiểm tra) lên ảnh cho tới khi người dùng xác nhận. */
+    val hideUnverified: Boolean = true,
+    /** Chế độ DEBUG: tô đỏ mask xóa chữ, viền xanh vùng đặt chữ thay vì xóa thật. */
+    val debugMask: Boolean = false
 )

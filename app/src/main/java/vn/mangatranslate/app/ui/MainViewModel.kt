@@ -128,7 +128,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 pageIndex = index, loadingPage = true, imageWidth = 0, imageHeight = 0,
                 originalChunks = emptyList(), translatedChunks = emptyList(), regions = emptyList(),
-                overflowIds = emptySet(), selectedRegionId = null, mode = ReaderMode.VIEW
+                overflowIds = emptySet(), hiddenIds = emptySet(), maskNotes = emptyMap(),
+                selectedRegionId = null, mode = ReaderMode.VIEW
             )
         }
         pageJob = viewModelScope.launch {
@@ -214,16 +215,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val style = s.settings.toRenderStyle()
         renderJob?.cancel()
         if (regions.isEmpty()) {
-            _state.update { it.copy(translatedChunks = emptyList(), overflowIds = emptySet()) }
+            _state.update { it.copy(translatedChunks = emptyList(), overflowIds = emptySet(), hiddenIds = emptySet(), maskNotes = emptyMap()) }
             return
         }
         renderJob = viewModelScope.launch {
             try {
-                val (chunks, overflow) = withContext(Dispatchers.Default) {
+                val (chunks, out) = withContext(Dispatchers.Default) {
                     val out = renderer.render(bmp, regions, style)
-                    PreviewChunker.build(out.bitmap, recycleSource = true) to out.overflowIds
+                    PreviewChunker.build(out.bitmap, recycleSource = true) to out
                 }
-                _state.update { it.copy(translatedChunks = chunks, overflowIds = overflow) }
+                val warning = when {
+                    out.changedOutside > 0 ->
+                        "Cảnh báo an toàn: phát hiện ${out.changedOutside} điểm ảnh bị đổi ngoài vùng chữ. Hãy dùng “Bản gốc” để so sánh và báo lỗi."
+                    out.failedIds.isNotEmpty() -> "Bỏ qua ${out.failedIds.size} vùng bị lỗi khi vẽ."
+                    else -> null
+                }
+                _state.update {
+                    it.copy(
+                        translatedChunks = chunks,
+                        overflowIds = out.overflowIds,
+                        hiddenIds = out.hiddenIds,
+                        maskNotes = out.maskRejected,
+                        message = warning?.let { w -> UiMessage(w) } ?: it.message
+                    )
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -289,7 +304,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     translatedText = tr,
                     userEdited = r.userEdited || tr != r.translatedText,
                     reviewNotes = rev,
-                    infoNotes = inf
+                    infoNotes = inf,
+                    confirmed = true // người dùng đã xem và bấm Lưu → được vẽ lên ảnh
                 )
             }
         }
@@ -330,7 +346,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     else r.copy(
                         sourceText = sourceText, rawTranslation = raw,
                         translatedText = translated, userEdited = false,
-                        reviewNotes = rev, infoNotes = inf, sourceLang = lang.code ?: r.sourceLang
+                        reviewNotes = rev, infoNotes = inf, sourceLang = lang.code ?: r.sourceLang,
+                        confirmed = false
                     )
                 }
             } catch (e: CancellationException) {

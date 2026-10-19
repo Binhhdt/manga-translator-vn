@@ -130,7 +130,7 @@ class OcrQualityTest {
     @Test
     fun fontNeverTinyEvenWhenSourceCharIsTiny() {
         val b = FontSizing.bounds(imageWidth = 1000f, sourceCharSize = 6f, areaHeight = 300f)
-        assertTrue(b.min >= 16f)
+        assertTrue("không tí hon như lỗi cũ (~6px)", b.min >= 12f)
         assertTrue(b.max >= b.min)
         val big = FontSizing.bounds(imageWidth = 1000f, sourceCharSize = 200f, areaHeight = 2000f)
         assertTrue("không vượt 6% bề rộng trang", big.max <= 60f)

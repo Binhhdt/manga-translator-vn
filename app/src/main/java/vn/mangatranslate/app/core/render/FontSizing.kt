@@ -15,7 +15,8 @@ object FontSizing {
     data class Bounds(val min: Float, val max: Float)
 
     fun bounds(imageWidth: Float, sourceCharSize: Float, areaHeight: Float): Bounds {
-        val minSize = max(11f, imageWidth * 0.016f)
+        // Tối thiểu dễ đọc, nhưng chữ gốc nhỏ (chú thích cuối trang) được phép nhỏ hơn 1.6% bề rộng trang.
+        val minSize = max(12f, min(imageWidth * 0.016f, max(sourceCharSize * 0.9f, 12f)))
         val preferred = max(sourceCharSize * 1.1f, imageWidth * 0.03f)
         val cap = min(imageWidth * 0.06f, max(minSize, areaHeight * 0.5f))
         val maxSize = max(minSize, min(preferred, cap))

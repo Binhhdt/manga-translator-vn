@@ -34,6 +34,10 @@ data class UiState(
     val translatedChunks: List<ImageBitmap> = emptyList(),
     val regions: List<TextRegion> = emptyList(),
     val overflowIds: Set<Int> = emptySet(),
+    /** Vùng có bản dịch đáng ngờ chưa xác nhận → chưa vẽ lên ảnh. */
+    val hiddenIds: Set<Int> = emptySet(),
+    /** Vùng bị từ chối xóa chữ vì mask bất thường (lý do). */
+    val maskNotes: Map<Int, String> = emptyMap(),
     val detectedLanguage: SourceLanguage? = null,
     val showTranslated: Boolean = true,
     val mode: ReaderMode = ReaderMode.VIEW,

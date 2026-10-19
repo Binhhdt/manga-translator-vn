@@ -54,7 +54,11 @@ object TextNormalizer {
                 // Chữ/số toàn khổ (ＧＫ, ！！) → dạng thường để máy dịch hiểu.
                 t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC)
                 t = removeSpacesBetweenCjk(t)
-                if (langCode == "ja") t = expandSportsAbbreviations(t)
+                t = normalizeEllipsis(t)
+                if (langCode == "ja") {
+                    t = expandSportsAbbreviations(t)
+                    t = katakanaEmphasisToKanji(t)
+                }
             }
         }
         return t
@@ -74,6 +78,43 @@ object TextNormalizer {
         "FK" to "フリーキック",
         "CK" to "コーナーキック"
     )
+
+    /**
+     * Dấu "…" và gạch "――" viết dọc thường bị OCR đọc thành ":", "：", "︙", "|", "・・・".
+     * Máy dịch giữ nguyên các ký tự này → bản dịch có "::" vô nghĩa ("Xin vui lòng::").
+     * Văn bản Nhật/Trung trong truyện gần như không dùng dấu hai chấm nên đổi chúng về dấu chuẩn.
+     */
+    fun normalizeEllipsis(t: String): String {
+        var s = t
+        s = s.replace(Regex("[︙︰⋮]+"), "…")
+        s = s.replace(Regex("[:：]{1,}"), "…")
+        s = s.replace(Regex("(?:[・･.。]\\s*){2,}"), "…")
+        s = s.replace(Regex("[‥]+"), "…")
+        s = s.replace(Regex("[|｜丨]+"), "―")
+        s = s.replace(Regex("…{2,}"), "…")
+        return s
+    }
+
+    /**
+     * Truyện Nhật hay viết từ thường bằng katakana để nhấn mạnh (ブザマ thay vì 無様). Máy dịch coi katakana là
+     * từ mượn/tên riêng và phiên âm ("buzzma"). Đổi một số từ phổ biến về dạng chữ Hán/hiragana để dịch đúng nghĩa.
+     * Chỉ thay khi là từ đứng riêng (không nằm trong một từ katakana dài hơn, ví dụ ダメージ giữ nguyên).
+     */
+    private val KATAKANA_EMPHASIS = linkedMapOf(
+        "ブザマ" to "無様", "バカ" to "馬鹿", "ムダ" to "無駄", "ダメ" to "駄目", "ヤツ" to "奴",
+        "ケンカ" to "喧嘩", "スゴイ" to "凄い", "ヒドイ" to "酷い", "ウソ" to "嘘", "ホント" to "本当",
+        "キサマ" to "貴様", "オレ" to "俺", "オマエ" to "お前", "テメェ" to "てめえ", "アイツ" to "あいつ",
+        "コイツ" to "こいつ", "ソイツ" to "そいつ", "ゴメン" to "ごめん", "クソ" to "くそ", "オイ" to "おい",
+        "オーイ" to "おーい", "ヤバイ" to "やばい", "スミマセン" to "すみません"
+    )
+
+    fun katakanaEmphasisToKanji(t: String): String {
+        var out = t
+        for ((kata, plain) in KATAKANA_EMPHASIS.entries.sortedByDescending { it.key.length }) {
+            out = Regex("(?<![\\p{IsKatakana}ー])" + Regex.escape(kata) + "(?![\\p{IsKatakana}ー])").replace(out, plain)
+        }
+        return out
+    }
 
     fun expandSportsAbbreviations(t: String): String {
         var out = t

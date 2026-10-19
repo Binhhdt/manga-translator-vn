@@ -14,9 +14,9 @@ import vn.mangatranslate.app.core.vision.WhiteSpaceExpander
 
 class VisionTest {
 
-    /** Trang 600×400 nền xám (tranh vẽ), hai bong bóng trắng, mỗi bong bóng có chữ dọc. */
+    /** Trang 1200×900 nền xám (tranh vẽ), hai bong bóng trắng (~4% trang mỗi cái), mỗi bong bóng có chữ dọc. */
     private fun twoBubblePage(): SyntheticPage {
-        val p = SyntheticPage(600, 400, background = 120)
+        val p = SyntheticPage(1200, 900, background = 120)
         p.bubble(150, 200, 90, 140)
         p.column(160, 110, 30, 4) // cột phải
         p.column(115, 110, 30, 3) // cột trái

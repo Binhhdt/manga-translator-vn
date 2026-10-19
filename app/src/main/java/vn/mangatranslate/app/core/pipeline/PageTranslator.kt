@@ -437,7 +437,8 @@ class PageTranslator(
     // ------------------------------------------------------------------ tiện ích hình học
 
     private fun layoutAround(gray: GrayImage, s: Float, textBox: BoxF, lineHeight: Float): BoxF {
-        val g = WhiteSpaceExpander.expand(gray, toGray(textBox, s), absorb = 0.7f * lineHeight * s, maxGrow = 2.5f * lineHeight * s)
+        // Nới tối đa 1 cỡ chữ: thử trên trang 006, nới 2.5 cỡ chữ làm vùng phủ của bong bóng hở "黒崎!" lan xuống sân bóng.
+        val g = WhiteSpaceExpander.expand(gray, toGray(textBox, s), absorb = 0.7f * lineHeight * s, maxGrow = 1.0f * lineHeight * s)
         return fromGray(g, s).union(textBox)
     }
 

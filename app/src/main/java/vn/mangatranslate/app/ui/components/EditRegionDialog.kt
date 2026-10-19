@@ -47,6 +47,8 @@ private fun langLabel(code: String) = when (code) {
 fun EditRegionDialog(
     region: TextRegion,
     overflow: Boolean,
+    hidden: Boolean,
+    maskNote: String?,
     onDismiss: () -> Unit,
     onSave: (source: String, translation: String, retranslate: Boolean) -> Unit,
     onRetranslate: (source: String) -> Unit,
@@ -80,7 +82,7 @@ fun EditRegionDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (region.needsReview || overflow) {
+                if (region.needsReview || overflow || hidden || maskNote != null) {
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -89,7 +91,9 @@ fun EditRegionDialog(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text("⚠ Cần kiểm tra", color = Color(0xFFFFB74D), fontWeight = FontWeight.Bold)
-                        if (overflow) Text("• Bản dịch không vừa khung thoại — hãy rút ngắn câu.", style = MaterialTheme.typography.bodySmall)
+                        if (overflow) Text("• Không đủ chỗ trong khung thoại — CHƯA vẽ lên ảnh. Hãy rút ngắn câu.", style = MaterialTheme.typography.bodySmall)
+                        if (hidden) Text("• Bản dịch đáng ngờ — CHƯA vẽ lên ảnh. Kiểm tra rồi bấm “Lưu bản dịch” để xác nhận.", style = MaterialTheme.typography.bodySmall)
+                        if (maskNote != null) Text("• $maskNote", style = MaterialTheme.typography.bodySmall)
                         region.reviewNotes.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                     }
                 }
