@@ -2,9 +2,11 @@ package vn.mangatranslate.app.core.pipeline
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.Log
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import vn.mangatranslate.app.core.image.BitmapGray
+import vn.mangatranslate.app.core.image.CropMath
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.BubbleShape
 import vn.mangatranslate.app.core.model.OcrBlock
@@ -26,8 +28,7 @@ import vn.mangatranslate.app.core.vision.BubbleDetector
 import vn.mangatranslate.app.core.vision.GrayImage
 import vn.mangatranslate.app.core.vision.TextBlobFinder
 import vn.mangatranslate.app.core.vision.WhiteSpaceExpander
-import kotlin.math.ceil
-import kotlin.math.floor
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
 import kotlin.math.min
 
@@ -51,7 +52,8 @@ class PageTranslator(
     private val engine: TranslationEngine
 ) {
 
-    data class PageResult(val language: SourceLanguage, val regions: List<TextRegion>)
+    /** [skipped]: các vùng bị bỏ qua vì lỗi (đã ghi log), không làm hỏng cả trang. */
+    data class PageResult(val language: SourceLanguage, val regions: List<TextRegion>, val skipped: List<String> = emptyList())
     data class ManualResult(val language: SourceLanguage, val region: TextRegion)
 
     /** Vùng chữ đã đọc, chưa dịch. Tọa độ theo ảnh gốc. */
@@ -108,41 +110,52 @@ class PageTranslator(
             if (free.isNotEmpty()) freeBlocks += OcrBlock(free, BoxF.unionOf(free.map { it.box }))
         }
 
+        Log.d(TAG, "Trang ${bitmap.width}x${bitmap.height}, ảnh xám ${gray.width}x${gray.height} (tỉ lệ $s), " +
+            "${blocks.size} khối OCR, ${bubbles.bubbles.size} bong bóng, ${assigned.size} bong bóng có chữ")
+
+        // Mỗi vùng được xử lý độc lập: một vùng lỗi chỉ bị bỏ qua (ghi log), các vùng khác vẫn được dịch.
+        val skipped = ArrayList<String>()
         val drafts = ArrayList<Draft>()
         var index = 0
         for ((label, lines) in assigned) {
             index++
             onStage("Đang đọc bong bóng $index/${assigned.size}…")
             val bubble = bubbleByLabel[label] ?: continue
-            readBubble(bitmap, bubble, s, lines, code, script)?.let { drafts += it }
+            isolate("bong bóng #$index", skipped) { readBubble(bitmap, bubble, s, lines, code, script, "bong bóng #$index") }
+                ?.let { drafts += it }
         }
 
         val freeRegions = detector.detect(freeBlocks, rightToLeft = lang == SourceLanguage.JAPANESE)
         for ((i, d) in freeRegions.withIndex()) {
             onStage("Đang đọc vùng chữ ngoài bong bóng ${i + 1}/${freeRegions.size}…")
-            readFree(bitmap, gray, s, d, code, script)?.let { drafts += it }
+            isolate("vùng ngoài bong bóng #${i + 1}", skipped) { readFree(bitmap, gray, s, d, code, script, "vùng #${i + 1}") }
+                ?.let { drafts += it }
         }
 
         if (code == "ja" || code == "zh" || code == "ko") {
             onStage("Đang tìm chữ bị bỏ sót…")
             val exclude = drafts.flatMap { listOf(toGray(it.box, s), toGray(it.layoutBox, s)) }
-            for (cand in blobFinder.find(gray, exclude, MAX_RESCUE)) {
+            for ((i, cand) in blobFinder.find(gray, exclude, MAX_RESCUE).withIndex()) {
                 currentCoroutineContext().ensureActive()
-                val d = readRescue(bitmap, gray, s, cand, code, script) ?: continue
+                val d = isolate("vùng bỏ sót #${i + 1}", skipped) { readRescue(bitmap, gray, s, cand, code, script, "bỏ sót #${i + 1}") }
+                    ?: continue
                 if (drafts.none { overlapRatio(it.box, d.box) > 0.4f }) drafts += d
             }
         }
 
-        if (drafts.isEmpty()) return PageResult(lang, emptyList())
+        if (drafts.isEmpty()) return PageResult(lang, emptyList(), skipped)
         val ordered = readingOrder(drafts, rightToLeft = lang == SourceLanguage.JAPANESE)
 
         prepareModel(lang, onStage)
         val regions = ArrayList<TextRegion>(ordered.size)
         for ((i, d) in ordered.withIndex()) {
             onStage("Đang dịch vùng ${i + 1}/${ordered.size}…")
-            val raw = translateRaw(code, d.text, glossary)
+            var translateError: String? = null
+            val raw = isolate("dịch vùng #${i + 1}", skipped) { translateRaw(code, d.text, glossary) }
+                ?: "".also { translateError = "Lỗi khi dịch vùng này — hãy bấm “Dịch lại”" }
             val translated = finalize(raw, pronoun)
-            val (rev, inf) = review(d.text, translated, code, glossary)
+            val (rev0, inf) = review(d.text, translated, code, glossary)
+            val rev = listOfNotNull(translateError) + rev0
             regions += TextRegion(
                 id = i + 1,
                 box = d.box,
@@ -159,7 +172,23 @@ class PageTranslator(
                 sourceLang = code
             )
         }
-        return PageResult(lang, regions)
+        return PageResult(lang, regions, skipped)
+    }
+
+    /**
+     * Chạy [block] cho một vùng; lỗi của riêng vùng đó được ghi log và bỏ qua.
+     * Không nuốt: hủy tác vụ (người dùng bấm Hủy) và lỗi cần báo người dùng (ví dụ không tải được mô hình).
+     */
+    private inline fun <T> isolate(what: String, skipped: MutableList<String>, block: () -> T?): T? = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: UserFacingException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Bỏ qua $what: ${e.javaClass.simpleName}: ${e.message}", e)
+        skipped += what
+        null
     }
 
     // ------------------------------------------------------------------ đọc từng loại vùng
@@ -170,14 +199,20 @@ class PageTranslator(
         s: Float,
         lines: List<OcrLine>,
         code: String,
-        script: OCRProcessor.Script
+        script: OCRProcessor.Script,
+        tag: String
     ): Draft? {
-        val l = floor(b.left / s).toInt().coerceIn(0, bitmap.width - 1)
-        val t = floor(b.top / s).toInt().coerceIn(0, bitmap.height - 1)
-        val r = ceil(b.right / s).toInt().coerceIn(l + 1, bitmap.width)
-        val btm = ceil(b.bottom / s).toInt().coerceIn(t + 1, bitmap.height)
-        val w = r - l
-        val h = btm - t
+        // Bong bóng nhỏ (ví dụ "!!") được nới tới tối thiểu 32 px; phần nới thêm nằm ngoài bong bóng nên bị tô trắng bên dưới.
+        val rect = CropMath.safeCrop(fromGray(b.box, s), bitmap.width, bitmap.height)
+        if (rect == null) {
+            Log.w(TAG, "[$tag] vùng cắt không hợp lệ: bong bóng ${b.box} (ảnh xám), tỉ lệ $s, ảnh ${bitmap.width}x${bitmap.height}")
+            return null
+        }
+        val l = rect.left
+        val t = rect.top
+        val w = rect.width
+        val h = rect.height
+        Log.d(TAG, "[$tag] bong bóng ${b.width}x${b.height} (ảnh xám) → cắt ($l,$t) ${w}x$h trên ảnh ${bitmap.width}x${bitmap.height}")
 
         // Cắt bong bóng, tô trắng mọi thứ bên ngoài để chữ/nét vẽ bên cạnh không lẫn vào.
         val px = IntArray(w * h)
@@ -194,7 +229,7 @@ class PageTranslator(
         val pageText = detector.buildText(kept, pageVertical)
         val hint = if (kept.isNotEmpty()) detector.estimateThickness(kept, pageVertical) else null
         val outcome = try {
-            regionOcr.read(crop, code, script, pageText, pageVertical, hint)
+            regionOcr.read(crop, code, script, pageText, pageVertical, hint, tag)
         } finally {
             crop.recycle()
         }
@@ -223,12 +258,13 @@ class PageTranslator(
         s: Float,
         d: TextRegionDetector.DetectedRegion,
         code: String,
-        script: OCRProcessor.Script
+        script: OCRProcessor.Script,
+        tag: String
     ): Draft? {
-        val cropBox = d.box.expand(d.lineHeight * 0.7f).clampTo(bitmap.width.toFloat(), bitmap.height.toFloat())
-        val (crop, l, t) = cropOf(bitmap, cropBox) ?: return null
+        val cropBox = d.box.expand(d.lineHeight * 0.7f)
+        val (crop, l, t) = cropOf(bitmap, cropBox, tag) ?: return null
         val outcome = try {
-            regionOcr.read(crop, code, script, d.text, d.vertical, d.lineHeight)
+            regionOcr.read(crop, code, script, d.text, d.vertical, d.lineHeight, tag)
         } finally {
             crop.recycle()
         }
@@ -249,20 +285,22 @@ class PageTranslator(
         s: Float,
         candGray: BoxF,
         code: String,
-        script: OCRProcessor.Script
+        script: OCRProcessor.Script,
+        tag: String
     ): Draft? {
-        val cropBox = fromGray(candGray, s).clampTo(bitmap.width.toFloat(), bitmap.height.toFloat())
-        val (crop, l, t) = cropOf(bitmap, cropBox) ?: return null
+        val cropBox = fromGray(candGray, s)
+        val (crop, l, t) = cropOf(bitmap, cropBox, tag) ?: return null
+        val textBoxFallback = cropBox.clampTo(bitmap.width.toFloat(), bitmap.height.toFloat())
         val outcome = (
             try {
-                regionOcr.read(crop, code, script)
+                regionOcr.read(crop, code, script, tag = tag)
             } finally {
                 crop.recycle()
             }
             ) ?: return null
         // Chỉ nhận khi kết quả thật sự giống văn bản của ngôn ngữ nguồn.
         if (outcome.validChars < 2 || outcome.invalidChars > 0 || outcome.score <= 0f) return null
-        val textBox = outcome.textBox?.let { offset(it, l, t) } ?: cropBox
+        val textBox = outcome.textBox?.let { offset(it, l, t) } ?: textBoxFallback
         return Draft(
             textBox, outcome.text, outcome.vertical, outcome.charSize,
             layoutAround(gray, s, textBox, outcome.charSize), null, outcome.method,
@@ -282,12 +320,12 @@ class PageTranslator(
     ): ManualResult {
         val b = box.clampTo(bitmap.width.toFloat(), bitmap.height.toFloat())
         if (b.width < 8f || b.height < 8f) throw UserFacingException("Vùng chọn quá nhỏ, hãy kéo rộng hơn.")
-        val (crop, l, t) = cropOf(bitmap, b) ?: throw UserFacingException("Vùng chọn quá nhỏ, hãy kéo rộng hơn.")
+        val (crop, l, t) = cropOf(bitmap, b, "khoanh tay") ?: throw UserFacingException("Vùng chọn không hợp lệ, hãy kéo lại.")
         try {
             val lang = resolveLanguage(crop, requested, onStage)
             val code = lang.code ?: "en"
             onStage("Đang nhận dạng chữ trong vùng chọn…")
-            val outcome = regionOcr.read(crop, code, scriptOf(lang))
+            val outcome = regionOcr.read(crop, code, scriptOf(lang), tag = "khoanh tay")
             val text = outcome?.text ?: ""
             val raw = if (text.isBlank()) "" else {
                 prepareModel(lang, onStage)
@@ -405,16 +443,21 @@ class PageTranslator(
 
     private data class Crop(val bitmap: Bitmap, val left: Int, val top: Int)
 
-    private fun cropOf(bitmap: Bitmap, box: BoxF): Crop? {
-        val l = floor(box.left).toInt().coerceIn(0, bitmap.width - 1)
-        val t = floor(box.top).toInt().coerceIn(0, bitmap.height - 1)
-        val r = ceil(box.right).toInt().coerceIn(l + 1, bitmap.width)
-        val b = ceil(box.bottom).toInt().coerceIn(t + 1, bitmap.height)
-        if (r - l < 8 || b - t < 8) return null
-        var crop = Bitmap.createBitmap(bitmap, l, t, r - l, b - t)
+    /**
+     * Cắt vùng an toàn: kẹp tọa độ âm/vượt mép, loại vùng ngoài ảnh hoặc NaN, nới vùng < 32 px quanh tâm
+     * (trong giới hạn ảnh gốc). Trả về null (và ghi log) nếu không thể cắt.
+     */
+    private fun cropOf(bitmap: Bitmap, box: BoxF, tag: String): Crop? {
+        val rect = CropMath.safeCrop(box, bitmap.width, bitmap.height)
+        if (rect == null) {
+            Log.w(TAG, "[$tag] vùng cắt không hợp lệ $box trên ảnh ${bitmap.width}x${bitmap.height} — bỏ qua")
+            return null
+        }
+        Log.d(TAG, "[$tag] cắt ($box) → (${rect.left},${rect.top}) ${rect.width}x${rect.height} trên ảnh ${bitmap.width}x${bitmap.height}")
+        var crop = Bitmap.createBitmap(bitmap, rect.left, rect.top, rect.width, rect.height)
         // createBitmap có thể trả về CHÍNH ảnh gốc khi cắt trọn ảnh — sao chép để không lỡ giải phóng ảnh gốc.
         if (crop === bitmap) crop = bitmap.copy(Bitmap.Config.ARGB_8888, false)
-        return Crop(crop, l, t)
+        return Crop(crop, rect.left, rect.top)
     }
 
     private fun toGray(b: BoxF, s: Float) = BoxF(b.left * s, b.top * s, b.right * s, b.bottom * s)
@@ -451,5 +494,6 @@ class PageTranslator(
     private companion object {
         const val GRAY_MAX_PIXELS = 4_000_000L
         const val MAX_RESCUE = 8
+        const val TAG = "MangaOCR"
     }
 }

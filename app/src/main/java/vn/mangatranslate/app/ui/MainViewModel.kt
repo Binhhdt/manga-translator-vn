@@ -188,7 +188,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val msg = if (result.regions.isEmpty())
                     "Không tìm thấy chữ (${result.language.label}). Thử chọn đúng ngôn ngữ trong Cài đặt hoặc dùng “Thêm vùng”."
                 else "Đã dịch ${result.regions.size} vùng chữ (${result.language.label} → Việt)" +
-                    (if (review > 0) ", $review vùng cần kiểm tra (khung cam trong “Sửa chữ”)." else ".")
+                    (if (review > 0) ", $review vùng cần kiểm tra (khung cam trong “Sửa chữ”)." else ".") +
+                    (if (result.skipped.isNotEmpty()) " Bỏ qua ${result.skipped.size} vùng lỗi; có thể dùng “Thêm vùng” để đọc lại." else "")
                 _state.update {
                     it.copy(
                         busy = null, regions = result.regions, detectedLanguage = result.language,

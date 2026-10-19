@@ -12,8 +12,8 @@ android {
         applicationId = "vn.mangatranslate.app"
         minSdk = 26          // Android 8.0
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1-giai-doan-1-ocr-nang-cap"
+        versionCode = 3
+        versionName = "0.1.2-sua-loi-input-32px"
 
         // Chỉ giữ thư viện cho chip ARM của điện thoại thật → APK nhẹ hơn nhiều (bỏ x86/x86_64 cho máy ảo).
         ndk {

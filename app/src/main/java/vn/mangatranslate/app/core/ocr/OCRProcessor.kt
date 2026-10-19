@@ -1,6 +1,9 @@
 package vn.mangatranslate.app.core.ocr
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -12,13 +15,12 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.tasks.await
+import vn.mangatranslate.app.core.image.CropMath
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.OcrBlock
 import vn.mangatranslate.app.core.model.OcrLine
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.roundToInt
 
 /**
  * OCR trên thiết bị bằng ML Kit Text Recognition v2.
@@ -59,10 +61,15 @@ class OCRProcessor {
         source: Bitmap,
         script: Script,
         upscale: Float? = null,
-        maxTiles: Int = Int.MAX_VALUE
+        maxTiles: Int = Int.MAX_VALUE,
+        tag: String = "trang"
     ): List<OcrBlock> {
         val w = source.width
         val h = source.height
+        if (w <= 0 || h <= 0) {
+            Log.w(TAG, "[$tag] bỏ qua ảnh rỗng ${w}x$h")
+            return emptyList()
+        }
         val scale = upscale ?: if (w < SMALL_WIDTH) min(MAX_AUTO_UPSCALE, TARGET_WIDTH.toFloat() / w) else 1f
         val tileHeight = max((w * 1.6f).toInt(), MIN_TILE_HEIGHT)
         val overlap = (tileHeight * 0.22f).toInt()
@@ -73,25 +80,40 @@ class OCRProcessor {
             if (index >= maxTiles) break
             currentCoroutineContext().ensureActive()
             val tileH = tile.bottom - tile.top
+            if (tileH <= 0) continue
             val tileBmp = if (tile.top == 0 && tile.bottom == h) source
             else Bitmap.createBitmap(source, 0, tile.top, w, tileH)
-            val input = if (abs(scale - 1f) > 0.01f) {
-                Bitmap.createScaledBitmap(
-                    tileBmp, max(1, (w * scale).roundToInt()), max(1, (tileH * scale).roundToInt()), true
-                )
-            } else tileBmp
+
+            // ML Kit từ chối ảnh < 32 px mỗi chiều → phóng (giữ tỉ lệ) và/hoặc đệm nền trắng trước khi gọi.
+            val plan = CropMath.inputPlan(w, tileH, scale)
+            val input = prepareInput(tileBmp, plan)
+            Log.d(
+                TAG,
+                "[$tag] ảnh nguồn=${w}x$h ô=${tile.top}..${tile.bottom} " +
+                    "phóng=${"%.2f".format(plan.scale)} đệm=${plan.padX},${plan.padY} → InputImage ${input.width}x${input.height}"
+            )
 
             try {
+                if (input.width < CropMath.MLKIT_MIN_SIDE || input.height < CropMath.MLKIT_MIN_SIDE) {
+                    Log.e(TAG, "[$tag] ảnh vẫn nhỏ hơn ${CropMath.MLKIT_MIN_SIDE}px sau khi chuẩn bị (${input.width}x${input.height}) — bỏ qua ô này")
+                    continue
+                }
                 val text: Text = client(script).process(InputImage.fromBitmap(input, 0)).await()
-                val sx = w.toFloat() / input.width
-                val sy = tileH.toFloat() / input.height
+                // Quy đổi tọa độ: bỏ phần đệm, chia tỉ lệ phóng, cộng vị trí ô.
+                val sx = w.toFloat() / plan.scaledW
+                val sy = tileH.toFloat() / plan.scaledH
+                val ox = plan.padX.toFloat()
+                val oy = plan.padY.toFloat()
                 for (block in text.textBlocks) {
                     val lines = block.lines.mapNotNull { line ->
                         val r = line.boundingBox ?: return@mapNotNull null
-                        OcrLine(
-                            line.text,
-                            BoxF(r.left * sx, r.top * sy + tile.top, r.right * sx, r.bottom * sy + tile.top)
+                        val box = BoxF(
+                            ((r.left - ox) * sx).coerceIn(0f, w.toFloat()),
+                            ((r.top - oy) * sy).coerceIn(0f, tileH.toFloat()) + tile.top,
+                            ((r.right - ox) * sx).coerceIn(0f, w.toFloat()),
+                            ((r.bottom - oy) * sy).coerceIn(0f, tileH.toFloat()) + tile.top
                         )
+                        if (box.width <= 0f || box.height <= 0f) null else OcrLine(line.text, box)
                     }
                     if (lines.isEmpty()) continue
                     val box = BoxF.unionOf(lines.map { it.box })
@@ -107,6 +129,21 @@ class OCRProcessor {
             }
         }
         return if (tiles.size > 1) dedupe(result) else result
+    }
+
+    /** Tạo ảnh đúng theo [plan]: phóng giữ tỉ lệ rồi đệm nền trắng nếu còn thiếu. Trả về chính [src] nếu không cần. */
+    private fun prepareInput(src: Bitmap, plan: CropMath.InputPlan): Bitmap {
+        if (!plan.needsWork) return src
+        val scaled = if (plan.scaledW != src.width || plan.scaledH != src.height) {
+            Bitmap.createScaledBitmap(src, plan.scaledW, plan.scaledH, true)
+        } else src
+        if (plan.padX == 0 && plan.padY == 0) return scaled
+        val padded = Bitmap.createBitmap(plan.outW, plan.outH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(padded)
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(scaled, plan.padX.toFloat(), plan.padY.toFloat(), null)
+        if (scaled !== src) scaled.recycle()
+        return padded
     }
 
     private fun buildTiles(h: Int, tileHeight: Int, overlap: Int): List<Tile> {
@@ -147,5 +184,6 @@ class OCRProcessor {
         const val MAX_AUTO_UPSCALE = 2f
         const val MIN_TILE_HEIGHT = 1600
         const val EDGE_PX = 3
+        const val TAG = "MangaOCR"
     }
 }

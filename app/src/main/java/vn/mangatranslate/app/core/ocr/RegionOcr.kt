@@ -1,12 +1,14 @@
 package vn.mangatranslate.app.core.ocr
 
 import android.graphics.Bitmap
+import android.util.Log
 import vn.mangatranslate.app.core.image.BitmapGray
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.model.OcrLine
 import vn.mangatranslate.app.core.vision.GrayImage
 import vn.mangatranslate.app.core.vision.TextLayoutAnalyzer
 import vn.mangatranslate.app.core.vision.VerticalComposer
+import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * OCR một vùng đã cắt riêng (một bong bóng hoặc một khối chữ) bằng NHIỀU cách rồi chọn cách tốt nhất:
@@ -46,8 +48,13 @@ class RegionOcr(
         script: OCRProcessor.Script,
         pageText: String? = null,
         pageVertical: Boolean? = null,
-        hintCharSize: Float? = null
+        hintCharSize: Float? = null,
+        tag: String = "vùng"
     ): Outcome? {
+        if (crop.width <= 0 || crop.height <= 0) {
+            Log.w(TAG, "[$tag] vùng cắt rỗng ${crop.width}x${crop.height} — bỏ qua")
+            return null
+        }
         val gray = BitmapGray.fromBitmap(crop).image
         val cjk = langCode == "ja" || langCode == "zh"
         val layout = if (cjk) analyzer.analyzeVertical(gray.inkMask(), gray.width, gray.height) else null
@@ -59,7 +66,7 @@ class RegionOcr(
         }
 
         // A — đọc trực tiếp vùng cắt.
-        val direct = recognizeLines(crop, script, charSize)
+        val direct = recognizeLines(crop, script, charSize, "$tag/$METHOD_DIRECT")
         val directVertical = if (direct.isNotEmpty()) detector.isVertical(direct) else (pageVertical ?: cjk)
         if (direct.isNotEmpty()) {
             candidates += Candidate(
@@ -71,7 +78,7 @@ class RegionOcr(
         val vertical = directVertical || (direct.isEmpty() && cjk)
         val useColumns = layout != null && vertical && layout.mainColumns.any { it.cells.size >= 2 }
         if (useColumns && layout != null) {
-            composeAndRead(gray, layout, script)?.let { text ->
+            composeAndRead(gray, layout, script, "$tag/$METHOD_COLUMNS")?.let { text ->
                 val cols = layout.mainColumns
                 val box = BoxF(
                     cols.minOf { it.left }.toFloat(), cols.minOf { it.top }.toFloat(),
@@ -91,7 +98,7 @@ class RegionOcr(
         if (weak) {
             val bw = BitmapGray.toBitmap(BitmapGray.binarized(gray))
             try {
-                val lines = recognizeLines(bw, script, charSize)
+                val lines = recognizeLines(bw, script, charSize, "$tag/$METHOD_BINARY")
                 if (lines.isNotEmpty()) {
                     val v = detector.isVertical(lines)
                     candidates += Candidate(METHOD_BINARY, detector.buildText(lines, v), v, BoxF.unionOf(lines.map { it.box }))
@@ -131,20 +138,33 @@ class RegionOcr(
         return if (bestScore == Float.NEGATIVE_INFINITY) null else best
     }
 
-    private suspend fun recognizeLines(bmp: Bitmap, script: OCRProcessor.Script, charSize: Float): List<OcrLine> {
+    /** Một cách đọc lỗi (ví dụ ảnh bất thường) chỉ làm mất cách đọc đó, không làm hỏng cả vùng. */
+    private suspend fun recognizeLines(bmp: Bitmap, script: OCRProcessor.Script, charSize: Float, tag: String): List<OcrLine> {
         val up = (TARGET_CHAR / charSize).coerceIn(1f, MAX_UPSCALE)
-        val lines = ocr.recognize(bmp, script, upscale = up).flatMap { it.lines }
+        val lines = try {
+            ocr.recognize(bmp, script, upscale = up, tag = tag).flatMap { it.lines }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "[$tag] OCR lỗi trên ảnh ${bmp.width}x${bmp.height}: ${e.message}", e)
+            emptyList()
+        }
         return RubyFilter.filter(lines)
     }
 
-    private suspend fun composeAndRead(gray: GrayImage, layout: TextLayoutAnalyzer.Layout, script: OCRProcessor.Script): String? {
+    private suspend fun composeAndRead(gray: GrayImage, layout: TextLayoutAnalyzer.Layout, script: OCRProcessor.Script, tag: String): String? {
         val comp = VerticalComposer.compose(gray, layout) ?: return null
         val bmp = BitmapGray.toBitmap(comp)
         return try {
             val up = (TARGET_CHAR / layout.charSize).coerceIn(1f, MAX_UPSCALE)
-            val lines = ocr.recognize(bmp, script, upscale = up).flatMap { it.lines }
+            val lines = ocr.recognize(bmp, script, upscale = up, tag = tag).flatMap { it.lines }
             // Mỗi cột dọc đã thành một hàng ngang: đọc theo hàng, trên xuống dưới.
             detector.buildText(lines, vertical = false).takeIf { it.isNotBlank() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "[$tag] OCR lỗi trên ảnh tách cột ${comp.width}x${comp.height}: ${e.message}", e)
+            null
         } finally {
             bmp.recycle()
         }
@@ -158,5 +178,6 @@ class RegionOcr(
         const val METHOD_MANUAL = "Khoanh tay"
         private const val TARGET_CHAR = 40f
         private const val MAX_UPSCALE = 4f
+        private const val TAG = "MangaOCR"
     }
 }

@@ -117,7 +117,7 @@ khoảng 130 MB, tải tùy chọn) — xem mục Lộ trình.
 
 ## 7. Kiểm thử
 
-**Đã chạy**: 39 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
+**Đã chạy**: 50 unit test cho phần logic thuần (`app/src/test/`), chạy trên GitHub Actions trước khi build APK:
 tìm bong bóng trên trang giả lập, chữ của hai bong bóng không bị ghép, viền bong bóng không bị coi là chữ, thứ tự cột dọc
 phải→trái, phát hiện furigana, ký tự nhiều nét (二) đếm là một ô, xếp cột thành hàng, khoảng trắng dừng ở viền bong bóng,
 chấm điểm OCR (furigana lẫn vào bị trừ điểm), phát hiện từ lạ trong chính các câu lỗi từ ảnh thử ("buzzma", "ucking"),
