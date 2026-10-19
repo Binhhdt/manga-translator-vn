@@ -1,0 +1,179 @@
+--------- beginning of kernel
+--------- beginning of main
+--------- beginning of system
+--------- beginning of crash
+E/AndroidRuntime(  959): FATAL EXCEPTION: UiThreadHelper
+E/AndroidRuntime(  959): Process: com.google.android.apps.nexuslauncher, PID: 959
+E/AndroidRuntime(  959): java.lang.IllegalArgumentException: Service not registered: c.b.a.d.a.a.m@cf7a88f
+E/AndroidRuntime(  959): 	at android.app.LoadedApk.forgetServiceDispatcher(LoadedApk.java:1757)
+E/AndroidRuntime(  959): 	at android.app.ContextImpl.unbindService(ContextImpl.java:1874)
+E/AndroidRuntime(  959): 	at android.content.ContextWrapper.unbindService(ContextWrapper.java:792)
+E/AndroidRuntime(  959): 	at c.b.a.d.a.a.l.run(SourceFile:3)
+E/AndroidRuntime(  959): 	at android.os.Handler.handleCallback(Handler.java:938)
+E/AndroidRuntime(  959): 	at android.os.Handler.dispatchMessage(Handler.java:99)
+E/AndroidRuntime(  959): 	at android.os.Looper.loop(Looper.java:223)
+E/AndroidRuntime(  959): 	at android.os.HandlerThread.run(HandlerThread.java:67)
+I/TestRunner( 3915): run started: 1 tests
+I/TestRunner( 3915): started: diagnose(vn.mangatranslate.app.DiagnosticsTest)
+I/MangaDiag( 3915): ##### CHẨN ĐOÁN Manga Translator VN #####
+I/MangaDiag( 3915): == 0. Opus-MT Nhật→Anh (Kotlin + ONNX Runtime) so với tham chiếu Python ==
+I/MangaDiag( 3915): Có mô hình trong APK: true
+I/MangaDiag( 3915): Nạp mô hình: 4178 ms
+I/MangaDiag( 3915): «さわらないで» → «Don't touch me.» (1428 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «黒崎» → «Kurosaki.» (676 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «神奈川 GK 負傷!!» → «GK, Kanagawa, hurt!» (1915 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «腕を骨折» → «I broke my arm.» (794 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «大丈夫かよ» → «Are you okay?» (887 ms) token KHỚP, bản dịch KHÁC (Python: «You okay?»)
+I/MangaDiag( 3915): «こんなブザマはさらさなかったのによ» → «I wouldn't have let you do this.» (1853 ms) token KHỚP, bản dịch KHÁC (Python: «I wouldn't have let this happen.»)
+I/MangaDiag( 3915): «黒崎おいっ大丈夫かよォ…» → «What are you doing?» (747 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «オーイ救急班―» → «Oh, my God.» (2100 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «こりゃみごとに折れてるな―…» → «It's completely broken.» (1439 ms) token KHỚP, bản dịch KHÁC (Python: «It's broken, isn't it?»)
+I/MangaDiag( 3915): «あまりの鹿児島のパワーに腕を骨折―!!» → «I broke my arm against the power of Kagoshima!» (3760 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «残念だなァ…» → «I'm sorry.» (1200 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): «いててて…クソ受け身がとれてたら…» → «If you'd been here... if you'd been in the shit...» (4825 ms) token KHỚP, bản dịch KHỚP
+I/MangaDiag( 3915): Tổng: token khớp 12/12, bản dịch khớp 9/12
+I/MangaDiag( 3915): 
+I/MangaDiag( 3915): == 1. Bộ dịch: Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt ==
+I/MangaDiag( 3915): Tải mô hình ja/vi: 45836 ms
+I/MangaDiag( 3915): «さわらないで»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Don't touch me.» → «Đừng chạm vào tôi.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Đừng chạm vào»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Don't touch»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Đừng chạm vào»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «黒崎»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Kurosaki.» → «Kurosaki.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Blacklord»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Blacklord»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Blacklord»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «神奈川 GK 負傷!!»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «goalkeeper, Kanagawa, hurt!» → «Thủ môn, Kanagawa, Hurt!»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Chấn thương gk kanagawa !!»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Kanagawa GK injury!!»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Chấn thương gk kanagawa !!»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915):        tên romaji tìm thấy: [Kanagawa]
+I/MangaDiag( 3915):        giữ tên kiểu 'X%d': «X1 GK injury!!» → «Chấn thương x1 GK !!» → MẤT «Chấn thương x1 GK !!»
+I/MangaDiag( 3915):        giữ tên kiểu '[%d]': «[1] GK injury!!» → «[1] chấn thương GK !!» → GIỮ ĐƯỢC «Kanagawa chấn thương GK !!»
+I/MangaDiag( 3915):        giữ tên kiểu '#%d': «#1 GK injury!!» → «# 1 chấn thương gk !!» → MẤT «# 1 chấn thương gk !!»
+I/MangaDiag( 3915):        giữ tên kiểu 'QQ%d': «QQ1 GK injury!!» → «Chấn thương QQ1 GK !!» → GIỮ ĐƯỢC «Chấn thương Kanagawa GK !!»
+I/MangaDiag( 3915):        giữ tên kiểu '<%d>': «<1> GK injury!!» → «<1> chấn thương gk !!» → GIỮ ĐƯỢC «Kanagawa chấn thương gk !!»
+I/MangaDiag( 3915): «腕を骨折»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «I broke my arm.» → «Tôi đã phá vỡ cánh tay của tôi.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Giũa vũ khí»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Arms fracture»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Giũa vũ khí»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «大丈夫かよ»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Are you okay?» → «Bạn ổn chứ?»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Có ổn không?»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Is it all right?»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Có ổn không?»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «こんなブザマはさらさなかったのによ»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «I wouldn't have exposed you like this.» → «Tôi sẽ không tiếp xúc với bạn như thế này.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Buzzama như vậy đã không tiếp xúc»
+I/MangaDiag( 3915):        sau chuẩn hóa «こんな無様はさらさなかったのによ» → «Không thể phơi bày điều đó»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Such Buzzama was not exposed»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Buzzama như vậy đã không tiếp xúc»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «黒崎おいっ大丈夫かよォ……»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «What are you doing?» → «Bạn đang làm gì»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Kurosaki ok hoặc yo ......»
+I/MangaDiag( 3915):        sau chuẩn hóa «黒崎おいっ大丈夫かよォ…» → «Kurosaki là tất cả đúng hoặc tốt ...»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Kurosaki's OK or Yo ......»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Kurosaki ok hoặc yo ......»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915):        tên romaji tìm thấy: [Kurosaki]
+I/MangaDiag( 3915):        giữ tên kiểu 'X%d': «X1's OK or Yo ......» → «X1 OK hoặc YO ......» → GIỮ ĐƯỢC «Kurosaki OK hoặc YO ......»
+I/MangaDiag( 3915):        giữ tên kiểu '[%d]': «[1]'s OK or Yo ......» → «[1] ok hoặc yo ......» → GIỮ ĐƯỢC «Kurosaki ok hoặc yo ......»
+I/MangaDiag( 3915):        giữ tên kiểu '#%d': «#1's OK or Yo ......» → «# 1 ok hoặc yo ......» → MẤT «# 1 ok hoặc yo ......»
+I/MangaDiag( 3915):        giữ tên kiểu 'QQ%d': «QQ1's OK or Yo ......» → «QQ1 OK hoặc YO ......» → GIỮ ĐƯỢC «Kurosaki OK hoặc YO ......»
+I/MangaDiag( 3915):        giữ tên kiểu '<%d>': «<1>'s OK or Yo ......» → «<1> ok hoặc yo ......» → GIỮ ĐƯỢC «Kurosaki ok hoặc yo ......»
+I/MangaDiag( 3915): «さわらないで――»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Don't touch me.» → «Đừng chạm vào tôi.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Đừng chạm vào-»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Do not touch-»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Đừng chạm vào-»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «オーイ救急班―»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Hey, paramedics.» → «Này, nhân viên y tế.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Khẩn cấp oo»
+I/MangaDiag( 3915):        sau chuẩn hóa «おーい救急班―» → «Hồ khẩn cấp»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Oo Emergency»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Khẩn cấp oo»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «こりゃみごとに折れてるな――……»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «It's completely broken.» → «Nó hoàn toàn bị hỏng.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Nó bị phá vỡ bởi mỗi vụ mùa- ...»
+I/MangaDiag( 3915):        sau chuẩn hóa «こりゃみごとに折れてるな――…» → «Nó bị phá vỡ bởi mọi tội ác -...»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «It is broken by every crop- ...»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Nó bị phá vỡ bởi mỗi vụ mùa- ...»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «あまりの鹿児島のパワーに腕を骨折――!!»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «I broke my arm against the power of Kagoshima!» → «Tôi đã phá vỡ cánh tay của tôi chống lại sức mạnh của Kagoshima!»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Đập vũ khí cho sức mạnh của quá Kagoshima- !!»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Break arms to the power of too Kagoshima- !!»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Đập vũ khí cho sức mạnh của quá Kagoshima- !!»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915):        tên romaji tìm thấy: [Kagoshima]
+I/MangaDiag( 3915):        giữ tên kiểu 'X%d': «Break arms to the power of too X1- !!» → «Đập vũ khí cho sức mạnh của quá X1- !!» → GIỮ ĐƯỢC «Đập vũ khí cho sức mạnh của quá Kagoshima- !!»
+I/MangaDiag( 3915):        giữ tên kiểu '[%d]': «Break arms to the power of too [1]- !!» → «Đập vũ khí cho sức mạnh của quá [1] - !!» → GIỮ ĐƯỢC «Đập vũ khí cho sức mạnh của quá Kagoshima - !!»
+I/MangaDiag( 3915):        giữ tên kiểu '#%d': «Break arms to the power of too #1- !!» → «Đập vũ khí cho sức mạnh của quá # 1- !!» → MẤT «Đập vũ khí cho sức mạnh của quá # 1- !!»
+I/MangaDiag( 3915):        giữ tên kiểu 'QQ%d': «Break arms to the power of too QQ1- !!» → «Đập vũ khí cho sức mạnh của quá QQ1- !!» → GIỮ ĐƯỢC «Đập vũ khí cho sức mạnh của quá Kagoshima- !!»
+I/MangaDiag( 3915):        giữ tên kiểu '<%d>': «Break arms to the power of too <1>- !!» → «Đập vũ khí đến sức mạnh của quá <1> - !!» → GIỮ ĐƯỢC «Đập vũ khí đến sức mạnh của quá Kagoshima - !!»
+I/MangaDiag( 3915): «残念だなァ……»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «I'm sorry.» → «Tôi xin lỗi.»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Thật không may ......»
+I/MangaDiag( 3915):        sau chuẩn hóa «残念だなァ…» → «Tôi xin lỗi ...»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «Unfortunately ......»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Thật không may ......»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): «いててて……クソ受け身がとれてたら……»
+I/MangaDiag( 3915):     MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «If I'd been here... if I'd been there... if I'd been there...» → «Nếu tôi ở đây ... Nếu tôi ở đó ... Nếu tôi ở đó ...»
+I/MangaDiag( 3915):     A. ML Kit ja→vi trực tiếp (nguyên văn): «Nếu bạn có một người nhận chết tiệt ...»
+I/MangaDiag( 3915):        sau chuẩn hóa «いててて…くそ受け身がとれてたら…» → «Nếu bạn đang lên ...»
+I/MangaDiag( 3915):     B. ML Kit ja→en: «If you have a fucking receiver ...»
+I/MangaDiag( 3915):     C. ML Kit en→vi của B: «Nếu bạn có một người nhận chết tiệt ...»   (= A → xác nhận dịch qua tiếng Anh)
+I/MangaDiag( 3915): 
+I/MangaDiag( 3915): == 2. Quy trình đầy đủ trên trang 006 (OCR + ghép + dịch) ==
+I/MangaDiag( 3915): LỖI quy trình: FileNotFoundException: page006.png
+I/MangaDiag( 3915): java.io.FileNotFoundException: page006.png
+I/MangaDiag( 3915): 	at android.content.res.AssetManager.nativeOpenAsset(Native Method)
+I/MangaDiag( 3915): 	at android.content.res.AssetManager.open(AssetManager.java:874)
+I/MangaDiag( 3915): 	at android.content.res.AssetManager.open(AssetManager.java:851)
+I/MangaDiag( 3915): 	at vn.mangatranslate.app.DiagnosticsTest$diagnose$1.invokeSuspend(DiagnosticsTest.kt:165)
+I/MangaDiag( 3915): 	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source:1)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+I/MangaDiag( 3915): 	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source:1)
+I/MangaDiag( 3915): 	at vn.mangatranslate.app.DiagnosticsTest.diagnose(DiagnosticsTest.kt:62)
+I/MangaDiag( 3915): 	at java.lang.reflect.Method.invoke(Native Method)
+I/MangaDiag( 3915): 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+I/MangaDiag( 3915): 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+I/MangaDiag( 3915): 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+I/MangaDiag( 3915): 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+I/MangaDiag( 3915): 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+I/MangaDiag( 3915): 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+I/MangaDiag( 3915): 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+I/MangaDiag( 3915): 	at androidx.test.ext.junit.runners.AndroidJUnit4.run(AndroidJUnit4.java:162)
+I/MangaDiag( 3915): 	at org.junit.runners.Suite.runChild(Suite.java:128)
+I/MangaDiag( 3915): 	at org.junit.runners.Suite.runChild(Suite.java:27)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+I/MangaDiag( 3915): 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+I/MangaDiag( 3915): 	at org.junit.runner.JUnitCore.run(JUnitCore.java:137)
+I/MangaDiag( 3915): 	at org.junit.runner.JUnitCore.run(JUnitCore.java:115)
+I/MangaDiag( 3915): 	at androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:68)
+I/MangaDiag( 3915): 	at androidx.test.internal.runner.TestExecutor.execute(TestExecutor.java:59)
+I/MangaDiag( 3915): 	at androidx.test.runner.AndroidJUnitRunner.onStart(AndroidJUnitRunner.java:463)
+I/MangaDiag( 3915): 	at android.app.Instrumentation$InstrumentationThread.run(Instrumentation.java:2205)
+I/MangaDiag( 3915): ##### HẾT #####
+I/TestRunner( 3915): finished: diagnose(vn.mangatranslate.app.DiagnosticsTest)
+I/TestRunner( 3915): run finished: 1 tests, 0 failed, 0 ignored

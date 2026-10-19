@@ -1,0 +1,61 @@
++ adb wait-for-device
++ adb install -r app/build/outputs/apk/debug/app-debug.apk
+Performing Streamed Install
+Success
++ adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+Performing Streamed Install
+Success
++ adb shell am instrument -w -e class vn.mangatranslate.app.DiagnosticsTest vn.mangatranslate.app.test/androidx.test.runner.AndroidJUnitRunner
++ adb shell run-as vn.mangatranslate.app cat files/diag.txt
++ adb logcat -d -v brief MangaOCR:D MangaRender:D MangaDiag:I TestRunner:I AndroidRuntime:E '*:S'
++ echo '--- instrument ---'
+--- instrument ---
++ cat instrument.txt
+
+vn.mangatranslate.app.DiagnosticsTest:.
+
+Time: 93.69
+
+OK (1 test)
+
+
++ echo '--- diag (đầu) ---'
+--- diag (đầu) ---
++ head -c 3000 diag_app.txt
+##### CHẨN ĐOÁN Manga Translator VN #####
+== 0. Opus-MT Nhật→Anh (Kotlin + ONNX Runtime) so với tham chiếu Python ==
+Có mô hình trong APK: true
+Nạp mô hình: 4178 ms
+«さわらないで» → «Don't touch me.» (1428 ms) token KHỚP, bản dịch KHỚP
+«黒崎» → «Kurosaki.» (676 ms) token KHỚP, bản dịch KHỚP
+«神奈川 GK 負傷!!» → «GK, Kanagawa, hurt!» (1915 ms) token KHỚP, bản dịch KHỚP
+«腕を骨折» → «I broke my arm.» (794 ms) token KHỚP, bản dịch KHỚP
+«大丈夫かよ» → «Are you okay?» (887 ms) token KHỚP, bản dịch KHÁC (Python: «You okay?»)
+«こんなブザマはさらさなかったのによ» → «I wouldn't have let you do this.» (1853 ms) token KHỚP, bản dịch KHÁC (Python: «I wouldn't have let this happen.»)
+«黒崎おいっ大丈夫かよォ…» → «What are you doing?» (747 ms) token KHỚP, bản dịch KHỚP
+«オーイ救急班―» → «Oh, my God.» (2100 ms) token KHỚP, bản dịch KHỚP
+«こりゃみごとに折れてるな―…» → «It's completely broken.» (1439 ms) token KHỚP, bản dịch KHÁC (Python: «It's broken, isn't it?»)
+«あまりの鹿児島のパワーに腕を骨折―!!» → «I broke my arm against the power of Kagoshima!» (3760 ms) token KHỚP, bản dịch KHỚP
+«残念だなァ…» → «I'm sorry.» (1200 ms) token KHỚP, bản dịch KHỚP
+«いててて…クソ受け身がとれてたら…» → «If you'd been here... if you'd been in the shit...» (4825 ms) token KHỚP, bản dịch KHỚP
+Tổng: token khớp 12/12, bản dịch khớp 9/12
+
+== 1. Bộ dịch: Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt ==
+Tải mô hình ja/vi: 45836 ms
+«さわらないで»
+    MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Don't touch me.» → «Đừng chạm vào tôi.»
+    A. ML Kit ja→vi trực tiếp (nguyên văn): «Đừng chạm vào»
+    B. ML Kit ja→en: «Don't touch»
+    C. ML Kit en→vi của B: «Đừng chạm vào»   (= A → xác nhận dịch qua tiếng Anh)
+«黒崎»
+    MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «Kurosaki.» → «Kurosaki.»
+    A. ML Kit ja→vi trực tiếp (nguyên văn): «Blacklord»
+    B. ML Kit ja→en: «Blacklord»
+    C. ML Kit en→vi của B: «Blacklord»   (= A → xác nhận dịch qua tiếng Anh)
+«神奈川 GK 負傷!!»
+    MỚI (Opus-MT Nhật→Anh (offline, trong ứng dụng) + ML Kit Anh→Việt): Anh «goalkeeper, Kanagawa, hurt!» → «Thủ môn, Kanagawa, Hurt!»
+    A. ML Kit ja→vi trực tiếp (nguyên văn): «Chấn thương gk kanagawa !!»
+    B. ML Kit ja→en: «Kanagawa GK injury!!»
+    C. ML Kit en→vi của B: «Chấn thương gk kanagawa !!»   (= A → xác nhận dịch qua tiếng Anh)
+       tên romaji tìm thấy: [Kanagawa]
+       giữ tên kiểu 'X%d': «X1 GK injur+ exit 0

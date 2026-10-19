@@ -1,0 +1,8 @@
+
+vn.mangatranslate.app.DiagnosticsTest:.
+
+Time: 93.69
+
+OK (1 test)
+
+
