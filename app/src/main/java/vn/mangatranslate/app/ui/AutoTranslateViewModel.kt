@@ -115,8 +115,21 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
         val sorted = items.sortedWith { a, b -> NaturalOrderComparator.compare(a.second, b.second) }
         if (sorted.size > MAX_PAGES) log("Bản thử nghiệm: chỉ lấy $MAX_PAGES trang đầu (đã chọn ${sorted.size}).")
         val chosen = sorted.take(MAX_PAGES)
-        for ((u, _) in chosen) runCatching {
+        // Previous batch is replaced by the new one. Release only its own
+        // persisted image permissions to make a second 82-page batch possible
+        // on devices limiting the number of persisted document grants.
+        val newUris = chosen.map { it.first }.toSet()
+        _state.value.run?.pages?.forEach { old ->
+            val oldUri = Uri.parse(old.uri)
+            if (oldUri !in newUris) runCatching {
+                app.contentResolver.releasePersistableUriPermission(
+                    oldUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        for ((u, name) in chosen) runCatching {
             app.contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.onFailure {
+            log("Không giữ được quyền đọc ảnh $name sau khi mở lại ứng dụng: ${it.message}")
         }
         val model = _state.value.model ?: "?"
         val id = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -479,7 +492,7 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        /** Giai đoạn thử nghiệm: tối đa 10 trang/lượt (chưa chạy cả chương). */
-        const val MAX_PAGES = 10
+        /** Cho phép tối đa 100 trang/lượt; tiến độ và JSON được lưu sau từng trang. */
+        const val MAX_PAGES = 100
     }
 }
