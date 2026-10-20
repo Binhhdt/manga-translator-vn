@@ -1,0 +1,259 @@
+10-20 00:49:25.917 V/SplashScreenExceptionList(  505): SplashScreen checking exception for package vn.mangatranslate.app (target sdk:35) -> false
+10-20 00:49:25.953 V/WindowManagerShell(  789): Transition requested: android.os.BinderProxy@8fca413 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity } baseActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} topActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} origActivity=null realActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} numActivities=1 lastActiveTime=94998 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@741d650} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{834d049 vn.mangatranslate.app.ui.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-20 00:49:25.971 I/ActivityTaskManager(  505): START u0 {flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=0
+10-20 00:49:26.125 D/CoreBackPreview(  505): Window{8d340d0 u0 Splash Screen vn.mangatranslate.app}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@d89baef, mPriority=0, mIsAnimationCallback=false}
+10-20 00:49:27.418 V/WindowManager(  505): Sent Transition #9 createdAt=10-20 00:49:25.883 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity } baseActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} topActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} origActivity=null realActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} numActivities=1 lastActiveTime=94998 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{fa0492e vn.mangatranslate.app.ui.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=false isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-20 00:49:27.418 V/WindowManager(  505):     info={id=9 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} m=OPEN f=NONE leash=Surface(name=Task=8)/@0xe7399fc sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0},{WCT{RemoteToken{51f5ccf Task{f744cf1 #1 type=home}}} m=TO_BACK f=SHOW_WALLPAPER leash=Surface(name=Task=1)/@0x6111e0 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0}]}
+10-20 00:49:27.610 D/ActivityManager(  505): freezing 2515 com.android.imsserviceentitlement
+10-20 00:49:27.681 D/ActivityManager(  505): freezing 1155 com.google.android.cellbroadcastreceiver
+10-20 00:49:27.702 I/ActivityManager(  505): Start proc 3217:vn.mangatranslate.app/u0a192 for next-top-activity {vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity}
+10-20 00:49:27.725 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{ae44966 com.google.android.googlequicksearchbox/10132} BLOCKED
+10-20 00:49:27.726 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{e318d54 com.google.android.gm/10143} BLOCKED
+10-20 00:49:27.727 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{720f4fd com.google.android.devicelockcontroller/10171} BLOCKED
+10-20 00:49:27.727 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{c5b95f2 com.google.android.dialer/10128} BLOCKED
+10-20 00:49:27.728 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{5dac443 com.google.android.contacts/10154} BLOCKED
+10-20 00:49:27.728 I/AppsFilter(  505): interaction: PackageSetting{69f3dc1 vn.mangatranslate.app/10192} -> PackageSetting{4c42ac0 com.google.android.apps.youtube.music/10156} BLOCKED
+10-20 00:49:27.729 D/ActivityManager(  505): freezing 2748 com.google.android.dialer
+10-20 00:49:27.730 D/ActivityManager(  505): Reschedule freeze for process 2748 com.google.android.dialer (outstanding txns), timeout=2083
+10-20 00:49:27.850 D/CarrierSvcBindHelper(  996): onPackageAdded: vn.mangatranslate.app
+10-20 00:49:27.931 I/SdkSandboxManager(  505): No SDKs used. Skipping SDK data reconcilation for CallingInfo{mUid=10192, mPackageName='vn.mangatranslate.app, mAppProcessToken='null'}
+10-20 00:49:28.138 D/ImsResolver(  996): maybeAddedImsService, packageName: vn.mangatranslate.app
+10-20 00:49:28.272 W/ziparchive( 3217): Unable to open '/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.dm': No such file or directory
+10-20 00:49:28.272 W/ziparchive( 3217): Unable to open '/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.dm': No such file or directory
+10-20 00:49:28.978 D/nativeloader( 3217): Configuring clns-6 for other apk /data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.apk. target_sdk_version=35, uses_libraries=, library_path=/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/lib/x86_64:/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/vn.mangatranslate.app
+10-20 00:49:28.998 V/GraphicsEnvironment( 3217): ANGLE GameManagerService for vn.mangatranslate.app: false
+10-20 00:49:28.998 V/GraphicsEnvironment( 3217): vn.mangatranslate.app is not listed in per-application setting
+10-20 00:49:30.387 D/CoreBackPreview(  505): Window{55b9a7e u0 vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@653e226, mPriority=0, mIsAnimationCallback=false}
+10-20 00:49:30.784 D/ActivityManager(  505): freezing 1748 com.android.printspooler
+10-20 00:49:30.826 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{cea546b com.android.camera2/10146} BLOCKED
+10-20 00:49:31.303 W/InputManager-JNI(  505): Input channel object '8d340d0 Splash Screen vn.mangatranslate.app (client)' was disposed without first being removed with the input manager!
+10-20 00:49:31.312 I/ImeTracker(  505): vn.mangatranslate.app:9d503444: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-20 00:49:31.314 I/ImeTracker(  505): vn.mangatranslate.app:9d503444: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-20 00:49:31.921 W/ziparchive(  505): Unable to open '/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.dm': No such file or directory
+10-20 00:49:31.959 I/ActivityTaskManager(  505): Displayed vn.mangatranslate.app/.ui.MainActivity for user 0: +5s333ms
+10-20 00:49:32.365 D/CarrierSvcBindHelper(  996): onPackageModified: vn.mangatranslate.app
+10-20 00:49:32.390 D/ImsResolver(  996): maybeAddedImsService, packageName: vn.mangatranslate.app
+10-20 00:49:32.666 I/ActivityManager(  505): com.android.shell is exempt from freezer
+10-20 00:49:32.830 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{9d5da7a com.google.android.devicelockcontroller/10171} BLOCKED
+10-20 00:49:33.179 D/ActivityManager(  505): freezing 1064 com.android.bluetooth
+10-20 00:49:34.860 D/ActivityManager(  505): freezing 3004 com.google.android.webview:webview_service
+10-20 00:49:35.011 D/ProfileInstaller( 3217): Installing profile for vn.mangatranslate.app
+10-20 00:49:35.574 D/AndroidRuntime( 3724): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:49:35.580 I/AndroidRuntime( 3724): Using default boot image
+10-20 00:49:35.603 I/AndroidRuntime( 3724): Leaving lock profiling enabled
+10-20 00:49:35.625 I/GoogleInputMethodService( 3556): GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=vn.mangatranslate.app fieldId=0 fieldName=null extras=null}, false)
+10-20 00:49:36.122 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{68e2b22 com.google.android.gm/10143} BLOCKED
+10-20 00:49:36.125 E/ActivityManager(  505): Unable to freeze binder for 3527: -11
+10-20 00:49:36.171 D/AndroidRuntime( 3724): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:49:37.648 I/ActivityManager(  505): Background started FGS: Allowed [callingPackage: com.google.android.apps.wellbeing; callingUid: 10119; uidState: BFGS; uidBFSL: [BFSL]; intent: Intent { cmp=com.google.android.apps.wellbeing/com.google.apps.tiktok.concurrent.InternalForegroundService (has extras) }; code:BACKGROUND_ACTIVITY_PERMISSION; tempAllowListReason:<c5dd2e5 android.intent.action.BOOT_COMPLETED/u0,reasonCode:BOOT_COMPLETED,duration:20000,callingUid:1000>; targetSdkVersion:33; callerTargetSdkVersion:33; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-20 00:49:37.673 D/AndroidRuntime( 3724): Shutting down VM
+10-20 00:49:38.175 I/SafetyLabelChangedBroadcastReceiver(  802): received broadcast packageName: vn.mangatranslate.app, current user: UserHandle{0}, packageChangeEvent: NEW_INSTALL, intent user: UserHandle{0}
+10-20 00:49:38.192 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{345df06 com.google.android.projection.gearhead/10123} BLOCKED
+10-20 00:49:39.310 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{31aeebe com.google.android.googlequicksearchbox/10132} BLOCKED
+10-20 00:49:39.310 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{c29bb1f com.google.android.rkpdapp/10170} BLOCKED
+10-20 00:49:40.276 D/AndroidRuntime( 4048): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:49:40.293 I/AndroidRuntime( 4048): Using default boot image
+10-20 00:49:40.295 I/AndroidRuntime( 4048): Leaving lock profiling enabled
+10-20 00:49:40.441 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{8554828 com.google.android.googlequicksearchbox/10132} BLOCKED
+10-20 00:49:40.551 D/AndroidRuntime( 4048): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:49:40.989 D/ActivityManager(  505): freezing 2131 com.google.android.as.oss
+10-20 00:49:41.778 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{a18f2da com.google.android.gm/10143} BLOCKED
+10-20 00:49:41.848 D/AndroidRuntime( 4048): Shutting down VM
+10-20 00:49:42.932 I/ActivityManager(  505): com.google.android.packageinstaller is exempt from freezer
+10-20 00:49:44.063 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{b753856 com.google.android.settings.intelligence/10118} BLOCKED
+10-20 00:49:44.064 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{9760d7 com.google.android.settings.intelligence/10118} BLOCKED
+10-20 00:49:46.257 D/AndroidRuntime( 4421): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:49:46.277 I/AndroidRuntime( 4421): Using default boot image
+10-20 00:49:46.278 I/AndroidRuntime( 4421): Leaving lock profiling enabled
+10-20 00:49:46.794 D/AndroidRuntime( 4421): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:49:47.540 D/ActivityManager(  505): freezing 2729 com.android.externalstorage
+10-20 00:49:47.541 D/ActivityManager(  505): freezing 2788 com.google.android.documentsui
+10-20 00:49:48.261 D/AndroidRuntime( 4421): Shutting down VM
+10-20 00:49:51.838 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{d08f7bf com.google.android.apps.messaging/10129} BLOCKED
+10-20 00:49:51.887 I/ActivityManager(  505): Background started FGS: Allowed [callingPackage: com.google.android.apps.messaging; callingUid: 10129; uidState: CEM ; uidBFSL: n/a; intent: Intent { cmp=com.google.android.apps.messaging/com.google.apps.tiktok.concurrent.InternalForegroundService (has extras) }; code:BACKGROUND_FGS_PERMISSION; tempAllowListReason:<null>; targetSdkVersion:34; callerTargetSdkVersion:34; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-20 00:49:51.903 W/ActivityManager(  505): Foreground service started from background can not have location/camera/microphone access: service com.google.android.apps.messaging/com.google.apps.tiktok.concurrent.InternalForegroundService
+10-20 00:49:52.756 I/MTV-OAuth( 3217): issuer: https://auth.openai.com
+10-20 00:49:52.775 I/MTV-OAuth( 3217): LISTENER_BOUND 127.0.0.1:1455 (backlog 64)
+10-20 00:49:52.900 I/MTV-OAuth( 3217): SELF_TEST_OK GET /health → 200 sau 119 ms
+10-20 00:49:52.934 I/ActivityManager(  505): Background started FGS: Allowed [callingPackage: vn.mangatranslate.app; callingUid: 10192; uidState: TOP ; uidBFSL: [BFSL]; intent: Intent { cmp=vn.mangatranslate.app/.core.chatgpt.OAuthWaitService }; code:PROC_STATE_TOP; tempAllowListReason:<null>; targetSdkVersion:35; callerTargetSdkVersion:35; startForegroundCount:0; bindFromPackage:null: isBindService:false]
+10-20 00:49:53.030 V/ActivityThread( 3217): getPackageInfo() caused update to cached ApplicationInfo for package vn.mangatranslate.app
+10-20 00:49:53.058 I/MTV-OAuth( 3217): FOREGROUND_SERVICE_REQUESTED
+10-20 00:49:53.085 I/MTV-OAuth( 3217): Lần đầu: client_id=dynamic_agent_client (đăng ký mới)
+10-20 00:49:53.088 I/MTV-OAuth( 3217): REDIRECT_URI_MATCH http://127.0.0.1:1455/auth/callback
+10-20 00:49:53.114 I/MTV-OAuth( 3217): FOREGROUND_SERVICE_STARTED
+10-20 00:49:53.328 I/MTV-OAuth( 3217): BROWSER_OPENED
+10-20 00:49:53.688 D/ActivityManager(  505): freezing 3091 com.android.traceur
+10-20 00:49:55.599 D/ActivityManager(  505): freezing 3123 com.google.android.onetimeinitializer
+10-20 00:49:56.342 W/system_server(  505): Long monitor contention with owner android.fg (527) at android.util.Pair com.android.server.am.ProcessList.getNumForegroundServices()(ProcessList.java:5416) waiters=1 in void com.android.server.am.ActivityManagerService.doDump(java.io.FileDescriptor, java.io.PrintWriter, java.lang.String[], boolean) for 314ms
+10-20 00:49:56.781 V/WindowManager(  505):     info={id=10 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{2b36a21 Task{71dc05d #9 type=standard A=10150:com.android.chrome}}} m=OPEN f=NONE leash=Surface(name=Task=9)/@0x99769e4 sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0},{WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} m=TO_BACK f=NONE leash=Surface(name=Task=8)/@0xe7399fc sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0}]}
+10-20 00:49:57.920 D/AndroidRuntime( 4755): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:49:57.947 I/AndroidRuntime( 4755): Using default boot image
+10-20 00:49:57.947 I/AndroidRuntime( 4755): Leaving lock profiling enabled
+10-20 00:49:58.788 D/AndroidRuntime( 4755): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:49:58.853 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{31c2aae com.android.chrome/10150} BLOCKED
+10-20 00:49:59.970 D/ActivityManager(  505): freezing 3253 com.android.camera2
+10-20 00:50:00.155 D/ActivityManager(  505): freezing 2515 com.android.imsserviceentitlement
+10-20 00:50:00.625 D/AndroidRuntime( 4755): Shutting down VM
+10-20 00:50:01.177 D/ActivityManager(  505): freezing 2703 com.android.providers.calendar
+10-20 00:50:02.537 D/ActivityManager(  505): freezing 997 com.android.settings
+10-20 00:50:02.538 D/ActivityManager(  505): freezing 3353 com.android.dynsystem:dynsystem
+10-20 00:50:02.538 D/ActivityManager(  505): freezing 3319 com.android.dynsystem
+10-20 00:50:02.538 D/ActivityManager(  505): freezing 2681 com.android.keychain
+10-20 00:50:02.539 D/ActivityManager(  505): freezing 2197 com.android.localtransport
+10-20 00:50:04.646 D/AndroidRuntime( 4909): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:50:04.663 I/AndroidRuntime( 4909): Using default boot image
+10-20 00:50:04.664 I/AndroidRuntime( 4909): Leaving lock profiling enabled
+10-20 00:50:05.021 D/AndroidRuntime( 4909): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:50:09.207 D/AndroidRuntime( 4909): Shutting down VM
+10-20 00:50:13.765 D/AndroidRuntime( 4978): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:50:13.778 I/AndroidRuntime( 4978): Using default boot image
+10-20 00:50:13.788 I/AndroidRuntime( 4978): Leaving lock profiling enabled
+10-20 00:50:16.088 D/AndroidRuntime( 4978): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:50:17.582 D/AndroidRuntime( 4978): Shutting down VM
+10-20 00:50:17.686 D/ActivityManager(  505): freezing 1690 com.google.android.youtube
+10-20 00:50:18.449 D/ActivityManager(  505): freezing 4332 com.google.android.tts
+10-20 00:50:18.514 D/ActivityManager(  505): freezing 1664 com.google.android.apps.youtube.music
+10-20 00:50:18.539 D/ActivityManager(  505): freezing 3454 com.google.android.configupdater
+10-20 00:50:18.566 D/ActivityManager(  505): freezing 3840 com.google.android.projection.gearhead:shared
+10-20 00:50:18.572 D/ActivityManager(  505): freezing 3883 com.google.android.rkpdapp
+10-20 00:50:18.572 D/ActivityManager(  505): freezing 4583 com.google.android.healthconnect.controller
+10-20 00:50:18.573 D/ActivityManager(  505): freezing 4508 com.google.android.marvin.talkback
+10-20 00:50:18.573 D/ActivityManager(  505): freezing 4469 com.android.emergency
+10-20 00:50:18.701 D/ActivityManager(  505): freezing 4342 com.google.android.settings.intelligence
+10-20 00:50:18.795 D/ActivityManager(  505): Reschedule freeze for process 4342 com.google.android.settings.intelligence (outstanding txns), timeout=2672
+10-20 00:50:18.827 D/ActivityManager(  505): freezing 1155 com.google.android.cellbroadcastreceiver
+10-20 00:50:19.493 W/system_server(  505): Long monitor contention with owner CachedAppOptimizerThread (593) at void com.android.server.am.CachedAppOptimizer$FreezeHandler.freezeProcess(com.android.server.am.ProcessRecord)(CachedAppOptimizer.java:2312) waiters=0 in boolean com.android.server.am.ActivityManagerService$LocalService.isUidActive(int) for 734ms
+10-20 00:50:19.498 W/system_server(  505): Long monitor contention with owner CachedAppOptimizerThread (593) at void com.android.server.am.CachedAppOptimizer$FreezeHandler.freezeProcess(com.android.server.am.ProcessRecord)(CachedAppOptimizer.java:2312) waiters=1 in void com.android.server.am.ActivityManagerService$LocalService.notifyNetworkPolicyRulesUpdated(int, long) for 475ms
+10-20 00:50:20.368 W/system_server(  505): Long monitor contention with owner CachedAppOptimizerThread (593) at void com.android.server.am.CachedAppOptimizer$FreezeHandler.handleMessage(android.os.Message)(CachedAppOptimizer.java:2144) waiters=0 in android.app.ContentProviderHolder com.android.server.am.ContentProviderHelper.getContentProviderImpl(android.app.IApplicationThread, java.lang.String, android.os.IBinder, int, java.lang.String, java.lang.String, boolean, int) for 651ms
+10-20 00:50:21.156 D/ActivityManager(  505): freezing 3091 com.android.traceur
+10-20 00:50:31.288 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{36af7f com.google.android.gm/10143} BLOCKED
+10-20 00:50:33.089 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{c6951af com.android.chrome/10150} BLOCKED
+10-20 00:50:34.819 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{dd6908d com.google.android.apps.messaging/10129} BLOCKED
+10-20 00:50:36.203 I/ImeTracker(  505): vn.mangatranslate.app:f5b7ae58: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-20 00:50:36.203 I/ImeTracker(  505): vn.mangatranslate.app:f5b7ae58: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-20 00:50:36.225 I/GoogleInputMethodService( 3556): GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=vn.mangatranslate.app fieldId=0 fieldName=null extras=null}, false)
+10-20 00:50:36.514 V/WindowManager(  505):     info={id=12 t=CLOSE f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} m=TO_FRONT f=MOVE_TO_TOP leash=Surface(name=Task=8)/@0xe7399fc sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0}]}
+10-20 00:50:40.498 D/ActivityManager(  505): freezing 4342 com.google.android.settings.intelligence
+10-20 00:50:40.527 D/ActivityManager(  505): Reschedule freeze for process 4342 com.google.android.settings.intelligence (outstanding txns), timeout=1090
+10-20 00:50:41.619 D/ActivityManager(  505): freezing 4342 com.google.android.settings.intelligence
+10-20 00:50:41.626 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{462ddd3 com.google.android.apps.messaging/10129} BLOCKED
+10-20 00:50:41.626 D/ActivityManager(  505): Reschedule freeze for process 4342 com.google.android.settings.intelligence (outstanding txns), timeout=1000
+10-20 00:50:42.630 D/ActivityManager(  505): freezing 4342 com.google.android.settings.intelligence
+10-20 00:50:42.631 D/ActivityManager(  505): Kill app due to repeated failure to freeze binder: 4342 com.google.android.settings.intelligence
+10-20 00:50:45.017 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{f45bf8b com.google.android.apps.messaging/10129} BLOCKED
+10-20 00:50:45.760 D/ActivityManager(  505): freezing 3796 com.google.android.partnersetup
+10-20 00:50:45.973 D/ActivityManager(  505): freezing 5181 com.android.providers.partnerbookmarks
+10-20 00:50:47.492 D/ActivityManager(  505): freezing 5261 com.android.chrome
+10-20 00:50:50.327 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{5a6e5fc com.google.android.youtube/10139} BLOCKED
+10-20 00:50:50.327 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{f0ae485 com.google.android.googlequicksearchbox/10132} BLOCKED
+10-20 00:50:50.327 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{d582d26 com.google.android.apps.maps/10153} BLOCKED
+10-20 00:50:54.609 D/ActivityManager(  505): freezing 5353 com.google.android.apps.messaging:rcs
+10-20 00:50:59.460 D/ActivityManager(  505): freezing 4470 com.google.android.apps.messaging
+10-20 00:50:59.712 D/ActivityManager(  505): freezing 3796 com.google.android.partnersetup
+10-20 00:50:59.920 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{5767f1e com.google.android.contacts/10154} BLOCKED
+10-20 00:51:02.156 I/AiAiEcho( 4162): AppFetcherImplV2 updateApps package:[vn.mangatranslate.app], userId:[0], reason:[package is added.].
+10-20 00:51:05.145 I/AiAiEcho( 4162): AppFetcherImpl onPackageChanged vn.mangatranslate.app.
+10-20 00:51:05.146 I/AiAiEcho( 4162): AppIndexer Package:[vn.mangatranslate.app] UserProfile:[0] Enabled:[true].
+10-20 00:51:05.146 I/AiAiEcho( 4162): AppFetcherImplV2 updateApps package:[vn.mangatranslate.app], userId:[0], reason:[package is updated.].
+10-20 00:51:06.499 D/ActivityManager(  505): freezing 5805 com.google.android.settings.intelligence
+10-20 00:51:06.653 D/ActivityManager(  505): freezing 5845 com.android.settings
+10-20 00:51:07.941 D/ActivityManager(  505): freezing 3883 com.google.android.rkpdapp
+10-20 00:51:09.909 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{3d2bce5 com.google.android.contacts/10154} BLOCKED
+10-20 00:51:10.885 D/ActivityManager(  505): freezing 3796 com.google.android.partnersetup
+10-20 00:51:14.480 D/ActivityManager(  505): freezing 3472 com.google.android.gms.unstable
+10-20 00:51:14.594 D/ActivityManager(  505): freezing 4492 com.google.android.gms.ui
+10-20 00:51:18.691 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{29ed52f com.google.android.googlequicksearchbox/10132} BLOCKED
+10-20 00:51:29.474 I/AiAiCaptions( 4162): Enable com.google.android.apps.miphone.aiai.captions.CaptionsForegroundService
+10-20 00:51:30.475 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{66e9ddf com.google.android.as/10125} BLOCKED
+10-20 00:51:33.052 D/ActivityManager(  505): freezing 5981 com.google.android.googlequicksearchbox
+10-20 00:51:38.809 D/ActivityManager(  505): freezing 3876 com.google.android.gm
+10-20 00:51:40.476 D/ActivityManager(  505): freezing 3472 com.google.android.gms.unstable
+10-20 00:51:40.609 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{8632afb com.google.android.settings.intelligence/10118} BLOCKED
+10-20 00:51:40.618 E/ActivityManager(  505): Unable to freeze binder for 5805: -11
+10-20 00:51:42.070 D/ActivityManager(  505): freezing 4492 com.google.android.gms.ui
+10-20 00:51:42.957 D/ActivityManager(  505): freezing 3796 com.google.android.partnersetup
+10-20 00:51:43.357 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{d6f157e com.google.android.contacts/10154} BLOCKED
+10-20 00:51:49.638 D/ActivityManager(  505): freezing 6192 com.google.android.webview
+10-20 00:51:50.550 D/ActivityManager(  505): freezing 2061 com.google.android.apps.wallpaper
+10-20 00:51:51.540 D/ActivityManager(  505): freezing 6234 com.android.settings
+10-20 00:51:52.977 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{429f7ca com.google.android.contacts/10154} BLOCKED
+10-20 00:51:53.096 D/ActivityManager(  505): freezing 4508 com.google.android.marvin.talkback
+10-20 00:51:53.166 D/ActivityManager(  505): freezing 3840 com.google.android.projection.gearhead:shared
+10-20 00:51:53.381 D/ActivityManager(  505): freezing 3796 com.google.android.partnersetup
+10-20 00:51:53.709 D/ActivityManager(  505): freezing 1664 com.google.android.apps.youtube.music
+10-20 00:51:54.184 D/ActivityManager(  505): freezing 4332 com.google.android.tts
+10-20 00:51:54.443 D/ActivityManager(  505): freezing 5981 com.google.android.googlequicksearchbox
+10-20 00:51:54.987 D/ActivityManager(  505): freezing 5261 com.android.chrome
+10-20 00:52:01.367 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{b422ec4 com.google.android.contacts/10154} BLOCKED
+10-20 00:52:03.571 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{1bf7f2f com.google.android.as/10125} BLOCKED
+10-20 00:52:06.812 D/ActivityManager(  505): freezing 4332 com.google.android.tts
+10-20 00:52:06.998 D/ActivityManager(  505): freezing 1664 com.google.android.apps.youtube.music
+10-20 00:52:07.828 D/ActivityManager(  505): freezing 1690 com.google.android.youtube
+10-20 00:52:08.165 D/ActivityManager(  505): freezing 5981 com.google.android.googlequicksearchbox
+10-20 00:52:08.247 D/ActivityManager(  505): freezing 4508 com.google.android.marvin.talkback
+10-20 00:52:08.937 D/ActivityManager(  505): freezing 3840 com.google.android.projection.gearhead:shared
+10-20 00:52:09.110 D/ActivityManager(  505): freezing 3876 com.google.android.gm
+10-20 00:52:11.395 I/AppsFilter(  505): interaction: PackageSetting{bbc2dba vn.mangatranslate.app/10192} -> PackageSetting{f972719 com.google.android.contacts/10154} BLOCKED
+10-20 00:52:16.700 D/ActivityManager(  505): freezing 6256 com.google.android.settings.intelligence
+10-20 00:52:16.922 D/ActivityManager(  505): freezing 3538 com.google.android.googlequicksearchbox:search
+10-20 00:52:18.633 D/ActivityManager(  505): freezing 3883 com.google.android.rkpdapp
+10-20 00:52:23.897 D/ActivityManager(  505): freezing 3472 com.google.android.gms.unstable
+10-20 00:52:23.898 D/ActivityManager(  505): Reschedule freeze for process 3472 com.google.android.gms.unstable (outstanding txns), timeout=2888
+10-20 00:52:26.797 D/ActivityManager(  505): freezing 3472 com.google.android.gms.unstable
+10-20 00:52:31.216 D/ActivityManager(  505): freezing 2098 com.google.android.contacts
+10-20 00:52:31.450 D/ActivityManager(  505): freezing 802 com.google.android.permissioncontroller
+10-20 00:52:34.773 D/ActivityManager(  505): freezing 3538 com.google.android.googlequicksearchbox:search
+10-20 00:52:48.620 D/ActivityManager(  505): freezing 2131 com.google.android.as.oss
+10-20 00:52:49.524 D/ActivityManager(  505): freezing 3433 com.google.android.apps.wellbeing
+10-20 00:52:49.525 D/ActivityManager(  505): freezing 1854 com.google.process.gapps
+10-20 00:52:49.525 D/ActivityManager(  505): freezing 1920 android.process.media
+10-20 00:52:49.526 D/ActivityManager(  505): freezing 3454 com.google.android.configupdater
+10-20 00:52:49.603 D/ActivityManager(  505): freezing 6256 com.google.android.settings.intelligence
+10-20 00:52:59.500 D/ActivityManager(  505): freezing 6632 com.google.android.gms
+10-20 00:53:14.789 D/ActivityManager(  505): quick sync unfreeze 5261 for 1
+10-20 00:53:15.157 V/WindowManager(  505):     info={id=13 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{c5ce84a Task{c62249a #13 type=standard A=10150:com.android.chrome}}} m=OPEN f=MOVE_TO_TOP leash=Surface(name=Task=13)/@0xa00a63e sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0},{WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} m=TO_BACK f=NONE leash=Surface(name=Task=8)/@0xe7399fc sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0}]}
+10-20 00:53:16.221 D/ActivityManager(  505): freezing 1383 android.process.acore
+10-20 00:53:16.347 D/ActivityManager(  505): freezing 3538 com.google.android.googlequicksearchbox:search
+10-20 00:53:18.310 D/AndroidRuntime( 7134): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:53:18.333 I/AndroidRuntime( 7134): Using default boot image
+10-20 00:53:18.333 I/AndroidRuntime( 7134): Leaving lock profiling enabled
+10-20 00:53:19.283 D/AndroidRuntime( 7134): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:53:22.056 D/AndroidRuntime( 7134): Shutting down VM
+10-20 00:53:32.400 I/MTV-OAuth( 3217): CONNECTION_ERROR java.net.SocketTimeoutException: Read timed out
+10-20 00:53:33.000 D/ActivityManager(  505): freezing 3472 com.google.android.gms.unstable
+10-20 00:54:03.675 D/AndroidRuntime( 7222): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:54:03.681 I/AndroidRuntime( 7222): Using default boot image
+10-20 00:54:03.681 I/AndroidRuntime( 7222): Leaving lock profiling enabled
+10-20 00:54:03.836 D/AndroidRuntime( 7222): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:54:04.988 D/AndroidRuntime( 7222): Shutting down VM
+10-20 00:54:06.524 I/MTV-OAuth( 3217): CALLBACK_ACCEPTED (tham số: state)
+10-20 00:54:06.530 I/MTV-OAuth( 3217): HTTP_RESPONSE_SENT 400; STATE_INVALID — bỏ qua callback này, tiếp tục chờ
+10-20 00:54:08.331 D/ActivityManager(  505): freezing 5981 com.google.android.googlequicksearchbox
+10-20 00:54:09.633 D/ActivityManager(  505): freezing 5181 com.android.providers.partnerbookmarks
+10-20 00:54:12.313 D/ActivityManager(  505): freezing 1664 com.google.android.apps.youtube.music
+10-20 00:54:21.784 I/MTV-OAuth( 3217): CONNECTION_ERROR java.net.SocketTimeoutException: Read timed out
+10-20 00:54:21.785 I/MTV-OAuth( 3217): CONNECTION_ERROR java.net.SocketTimeoutException: Read timed out
+10-20 00:54:41.817 D/AndroidRuntime( 7533): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:54:41.827 I/AndroidRuntime( 7533): Using default boot image
+10-20 00:54:41.828 I/AndroidRuntime( 7533): Leaving lock profiling enabled
+10-20 00:54:42.002 D/AndroidRuntime( 7533): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:54:43.424 D/AndroidRuntime( 7533): Shutting down VM
+10-20 00:54:44.325 V/WindowManagerShell(  789): Transition requested: android.os.BinderProxy@73cccab TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity } baseActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} topActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} origActivity=null realActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} numActivities=1 lastActiveTime=323796 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@2816f08} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{920e6a1 vn.mangatranslate.app.ui.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-20 00:54:44.326 I/ActivityTaskManager(  505): START u0 {flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity} with LAUNCH_MULTIPLE from uid 2000 (BAL_ALLOW_PERMISSION) result code=2
+10-20 00:54:44.346 D/WindowManagerShell(  789): onActivityRestartAttempt: ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity}
+10-20 00:54:45.162 V/WindowManager(  505): Sent Transition #15 createdAt=10-20 00:54:44.312 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=8 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=vn.mangatranslate.app/.ui.MainActivity } baseActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} topActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} origActivity=null realActivity=ComponentInfo{vn.mangatranslate.app/vn.mangatranslate.app.ui.MainActivity} numActivities=1 lastActiveTime=323796 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=null topActivityInfo=ActivityInfo{fa0492e vn.mangatranslate.app.ui.MainActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=false isVisibleRequested=false isSleeping=false topActivityInSizeCompat=false topActivityEligibleForLetterboxEducation= false topActivityLetterboxed= false isFromDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 locusId=null displayAreaFeatureId=1 cameraCompatControlState=hidden}, remoteTransition = null, displayChange = null }
+10-20 00:54:45.170 V/WindowManager(  505):     info={id=15 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{WCT{RemoteToken{1fbfa9 Task{288d0a3 #8 type=standard A=10192:vn.mangatranslate.app}}} m=TO_FRONT f=MOVE_TO_TOP leash=Surface(name=Task=8)/@0xe7399fc sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0},{WCT{RemoteToken{c5ce84a Task{c62249a #13 type=standard A=10150:com.android.chrome}}} m=TO_BACK f=NONE leash=Surface(name=Task=13)/@0xa00a63e sb=Rect(0, 0 - 1080, 2280) eb=Rect(0, 0 - 1080, 2280) d=0}]}
+10-20 00:54:45.510 W/ziparchive(  505): Unable to open '/data/app/~~J1-W3Kx_ZgtnggYEiQmAQg==/vn.mangatranslate.app-DYvmItBF_yFcSkKy_LtzmQ==/base.dm': No such file or directory
+10-20 00:54:45.551 I/ImeTracker(  505): vn.mangatranslate.app:a750bc6d: onRequestHide at ORIGIN_SERVER_HIDE_INPUT reason HIDE_UNSPECIFIED_WINDOW
+10-20 00:54:45.552 I/ImeTracker(  505): vn.mangatranslate.app:a750bc6d: onCancelled at PHASE_SERVER_SHOULD_HIDE
+10-20 00:54:45.559 I/GoogleInputMethodService( 3556): GoogleInputMethodService.onStartInput():1877 onStartInput(EditorInfo{inputType=0x0(NULL) imeOptions=0x0 privateImeOptions=null actionName=UNSPECIFIED actionLabel=null actionId=0 initialSelStart=-1 initialSelEnd=-1 initialCapsMode=0x0 hintText=null label=null packageName=vn.mangatranslate.app fieldId=0 fieldName=null extras=null}, false)
+10-20 00:54:49.717 D/AndroidRuntime( 7591): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:54:49.722 I/AndroidRuntime( 7591): Using default boot image
+10-20 00:54:49.722 I/AndroidRuntime( 7591): Leaving lock profiling enabled
+10-20 00:54:49.825 D/AndroidRuntime( 7591): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:54:51.019 D/AndroidRuntime( 7591): Shutting down VM
+10-20 00:54:52.010 D/AndroidRuntime( 7612): >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+10-20 00:54:52.015 I/AndroidRuntime( 7612): Using default boot image
+10-20 00:54:52.015 I/AndroidRuntime( 7612): Leaving lock profiling enabled
+10-20 00:54:52.125 D/AndroidRuntime( 7612): Calling main entry com.android.commands.uiautomator.Launcher
+10-20 00:54:53.303 D/AndroidRuntime( 7612): Shutting down VM

@@ -1,0 +1,11 @@
++ adb shell getprop ro.build.version.release
+14
++ adb shell getprop ro.build.version.sdk
+34
++ grep -i -E 'chrome|browser|webview'
++ adb shell pm list packages
+package:com.google.android.overlay.googlewebview
+package:com.google.android.webview
+package:com.android.chrome
++ adb shell device_config get activity_manager_native_boot use_freezer
+null
