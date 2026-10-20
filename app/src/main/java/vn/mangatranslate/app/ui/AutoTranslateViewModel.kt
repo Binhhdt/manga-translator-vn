@@ -221,8 +221,8 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
             }
             var retries = 0
             val waits = listOf(5_000L, 15_000L)
-            val reply: ChatGptClient.Reply
-            while (true) {
+            var replyOrNull: ChatGptClient.Reply? = null
+            while (replyOrNull == null) {
                 val acc = try {
                     withContext(Dispatchers.IO) { auth.validAccessToken(::log) }
                 } catch (e: Exception) {
@@ -230,11 +230,10 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (!OAuthUtil.hasPlanScope(acc.scopes)) return fail(p, "Thiếu quyền chatgpt.tokens.use.direct", t0)
                 try {
-                    reply = withContext(Dispatchers.IO) {
+                    replyOrNull = withContext(Dispatchers.IO) {
                         client.respond(acc.accessToken, model, ChatGptClient.MANGA_INSTRUCTIONS,
                             "Đọc và dịch trang truyện này. Chỉ trả về JSON theo mẫu.", img)
                     }
-                    break
                 } catch (e: java.io.IOException) {
                     if (retries >= waits.size) return fail(p.copy(retries = retries), "Lỗi mạng sau ${retries + 1} lần thử: ${e.javaClass.name}: ${e.message}", t0)
                     log("${page.name}: ${e.javaClass.name}: ${e.message} — thử lại sau ${waits[retries] / 1000} s (lần ${retries + 2}/3)")
@@ -242,6 +241,7 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
                     retries++
                 }
             }
+            val reply = replyOrNull
             p = p.copy(retries = retries)
             if (reply.limitReached) return null
             val usage = reply.usage?.let { runCatching { JSONObject(it).optLong("total_tokens") }.getOrNull() }
