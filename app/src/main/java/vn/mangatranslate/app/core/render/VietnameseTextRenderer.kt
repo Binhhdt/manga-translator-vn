@@ -173,6 +173,16 @@ class VietnameseTextRenderer {
             background = if (alpha > 0) blend(bg, overlayColor, alpha / 255f) else bg
         }
 
+        // Any detected bubble whose ink-clearing mask was rejected must keep its
+        // original text. Otherwise painting the whole bright interior can silently
+        // erase an adjacent Japanese line or create an empty dialogue bubble.
+        // Prefer a visible untranslated bubble over a blank, misleading one.
+        if (shape != null && cleanRect == null && c.style.cleanBubbles && !c.style.debugMask) {
+            if (!c.maskRejected.containsKey(r.id))
+                c.maskRejected[r.id] = "Không có mặt nạ xóa chữ an toàn — giữ nguyên ảnh"
+            c.overflow += r.id
+            return
+        }
         // Vùng hở: không xóa được từng nét an toàn → giữ nguyên ảnh (KHÔNG phủ kín cả khung — tránh mảng xám/xóa nét vẽ).
         if (shape != null && shape.mask.label < 0 && cleanRect == null) {
             if (!c.maskRejected.containsKey(r.id)) c.maskRejected[r.id] = "Vùng hở: không xóa được nét chữ an toàn"
