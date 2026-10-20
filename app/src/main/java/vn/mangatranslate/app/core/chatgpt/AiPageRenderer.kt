@@ -80,24 +80,55 @@ class AiPageRenderer {
             overlayOpacity = 100,
             fillBubble = true
         )
-        var out = VietnameseTextRenderer().render(original, textRegions, style)
-
-        // LƯỚI AN TOÀN: vùng nào lỡ xóa nét vẽ/viền → render lại KHÔNG có vùng đó (giữ nguyên ảnh gốc ở đó).
-        for (pass in 0 until 2) {
-            val outGray = BitmapGray.fromBitmap(out.bitmap).image.pixels
-            val bad = HashMap<Int, String>()
-            decisions.forEachIndexed { i, d ->
-                if (d.action == AiRegionMapper.Action.SKIP) return@forEachIndexed
-                PostRenderCheck.damage(w, h, og, outGray, d)?.let { bad[i] = it }
+        // Atomic page composition: each dialogue is rendered alone from the immutable
+        // original. Never commit half a bubble, a failed fit, or edits over any other
+        // source dialogue / earlier accepted translation.
+        val originalPixels = IntArray(w * h)
+        original.getPixels(originalPixels, 0, w, 0, 0, w, h)
+        val compositePixels = originalPixels.copyOf()
+        val accepted = HashSet<Int>()
+        val rejected = HashMap<Int, String>()
+        val renderer = VietnameseTextRenderer()
+        textRegions.forEach { tr ->
+            val index = tr.id - 1
+            val d = decisions[index]
+            val solo = renderer.render(original, listOf(tr), style)
+            try {
+                val id = tr.id
+                val failed = id in solo.failedIds || id in solo.overflowIds ||
+                    id in solo.hiddenIds || solo.maskRejected.containsKey(id)
+                if (failed) {
+                    rejected[id] = solo.maskRejected[id] ?: if (id in solo.overflowIds)
+                        "Không đủ chỗ cho bản dịch" else "Không thể render vùng an toàn"
+                    return@forEach
+                }
+                val candidatePixels = IntArray(w * h)
+                solo.bitmap.getPixels(candidatePixels, 0, w, 0, 0, w, h)
+                val otherBoxes = regions.filter { it.id !in d.ids }.mapNotNull { r ->
+                    r.bbox?.takeIf { it.size == 4 }?.let { b ->
+                        BoxF((b[0] * w).toFloat(), (b[1] * h).toFloat(),
+                            ((b[0] + b[2]) * w).toFloat(), ((b[1] + b[3]) * h).toFloat())
+                            .clampTo(w.toFloat(), h.toFloat())
+                    }
+                }
+                // Protect all other source text and previously committed content.
+                val commit = PixelTransactionPolicy.tryCommit(
+                    originalPixels, compositePixels, candidatePixels, w, h, otherBoxes
+                )
+                if (!commit.committed) rejected[id] = commit.reason else {
+                    accepted += id
+                }
+            } finally {
+                solo.bitmap.recycle()
             }
-            if (bad.isEmpty()) break
-            decisions = decisions.mapIndexed { i, d ->
-                bad[i]?.let { why -> d.copy(action = AiRegionMapper.Action.SKIP, reason = "Bỏ qua để bảo vệ tranh: $why") } ?: d
-            }
-            out.bitmap.recycle()
-            out = VietnameseTextRenderer().render(original, textRegions.filter { tr -> bad[tr.id - 1] == null }, style)
-            textRegions.removeAll { tr -> bad[tr.id - 1] != null }
         }
+        val committedBitmap = original.copy(Bitmap.Config.ARGB_8888, true)
+        committedBitmap.setPixels(compositePixels, 0, w, 0, 0, w, h)
+        // Keep Output contract for callers, but report accepted/rejected using the
+        // atomic commit results, not the independent candidate renderer counters.
+        val out = VietnameseTextRenderer.Output(
+            committedBitmap, rejected.keys, emptySet(), rejected, emptySet(), 0
+        )
 
         val log = StringBuilder()
         log.append("Render thử ChatGPT → ảnh gốc ${w}×$h (ảnh gốc không bị sửa; vẽ trên bản sao)\n")
@@ -117,7 +148,7 @@ class AiPageRenderer {
                 d.action == AiRegionMapper.Action.BUBBLE -> "XÓA NÉT CHỮ TRONG BONG BÓNG + VẼ"
                 else -> "XÓA ĐÚNG NÉT CHỮ (VÙNG HỞ) + VẼ"
             }
-            val ok = !(status.startsWith("BỎ") || status.startsWith("LỖI") || status.startsWith("KHÔNG"))
+            val ok = id in accepted
             if (ok) drawn++ else {
                 skipped++
                 val purposeful = d.action == AiRegionMapper.Action.SKIP &&
@@ -158,11 +189,7 @@ class AiPageRenderer {
         decisions.forEachIndexed { i, d ->
             val id = i + 1
             if (d.action == AiRegionMapper.Action.SKIP) return@forEachIndexed
-            when {
-                id in out.failedIds -> notDrawn[id] = "Lỗi khi vẽ"
-                id in out.overflowIds -> notDrawn[id] = out.maskRejected[id] ?: "Không đủ chỗ cho bản dịch"
-                else -> drawnIds += id
-            }
+            if (id in accepted) drawnIds += id else notDrawn[id] = rejected[id] ?: "Không được ghép vào ảnh"
         }
         val ogOut = BitmapGray.fromBitmap(out.bitmap).image.pixels
         val checks = PostRenderCheck.check(w, h, og, ogOut, regions, decisions, drawnIds, notDrawn, bubbles, s)
