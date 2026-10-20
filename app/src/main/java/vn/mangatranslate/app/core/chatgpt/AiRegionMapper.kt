@@ -61,6 +61,30 @@ object AiRegionMapper {
         val s = grayScale
         val out = ArrayList<Decision>()
         val byBubble = LinkedHashMap<Int, Int>() // nhãn bong bóng → chỉ số trong out
+
+        // A detected white component is not necessarily one speech bubble. In manga,
+        // adjacent bubbles/panels may be connected, so two unrelated ChatGPT boxes
+        // can receive the SAME detector label. Never merge those translations: the
+        // combined sentence may not fit (007: 7+8, 15+16, 18+19).
+        // If ambiguous, try individually masking their actual text as OPEN. This is
+        // deliberately conservative: unresolved words stay Japanese, art stays safe.
+        val bubbleBoxes = HashMap<Int, MutableList<BoxF>>()
+        val ambiguousBubbles = HashSet<Int>()
+        for (candidate in regions) {
+            val bb = candidate.bbox ?: continue
+            if (bb.size != 4 || candidate.vi.isBlank() || candidate.uncertain ||
+                candidate.type.equals("sfx", true)) continue
+            val rect = BoxF((bb[0] * width).toFloat(), (bb[1] * height).toFloat(),
+                ((bb[0] + bb[2]) * width).toFloat(), ((bb[1] + bb[3]) * height).toFloat())
+                .clampTo(width.toFloat(), height.toFloat())
+            if (rect.width < 2f || rect.height < 2f) continue
+            val scaledBox = BoxF(rect.left * s, rect.top * s, rect.right * s, rect.bottom * s)
+            val label = bestBubble(scaledBox, bubbles)?.first?.label ?: continue
+            val seen = bubbleBoxes.getOrPut(label) { ArrayList() }
+            if (seen.any { !canMergeTextBoxes(it, rect) }) ambiguousBubbles += label
+            seen += rect
+        }
+
         for (r in regions) {
             val bb = r.bbox
             if (bb == null || bb.size != 4) {
@@ -78,7 +102,16 @@ object AiRegionMapper {
 
             // 1) Bong bóng khép kín khớp với vùng AI?
             val aiGray = BoxF(ai.left * s, ai.top * s, ai.right * s, ai.bottom * s)
-            val match = bestBubble(aiGray, bubbles)
+            // Preserve the pre-existing OPEN rendering whenever it works.
+            // A fallback bubble match must never replace a region that previously
+            // rendered successfully; that caused visible Japanese-text regressions.
+            val strictMatch = bestBubble(aiGray, bubbles)
+            val isAmbiguous = strictMatch?.first?.label in ambiguousBubbles
+            val openCandidate = if (strictMatch == null || isAmbiguous)
+                overlayOrSkip(r, ai, gray, s, width, height) else null
+            val match = if (isAmbiguous) null else strictMatch ?: if (openCandidate?.action == Action.SKIP) {
+                bestBubbleFallback(aiGray, bubbles)?.takeUnless { it.first.label in ambiguousBubbles }
+            } else null
             if (match != null) {
                 val (b0, why) = match
                 val prev = byBubble[b0.label]
@@ -127,10 +160,14 @@ object AiRegionMapper {
             }
 
             // 2) Không có bong bóng: chỉ phủ khi nền quanh nét chữ thật sự sáng.
-            out += overlayOrSkip(r, ai, gray, s, width, height)
+            out += openCandidate ?: overlayOrSkip(r, ai, gray, s, width, height)
         }
         return out
     }
+
+    /** Strong overlap only: do not combine independent speech balloons sharing a white component. */
+    internal fun canMergeTextBoxes(a: BoxF, b: BoxF): Boolean =
+        a.intersectionArea(b) >= 0.30f * min(a.area, b.area) && min(a.area, b.area) > 0f
 
     /**
      * Bong bóng có phần lớn nét chữ nằm trong vùng AI, và không lớn bất thường so với vùng AI.
@@ -143,6 +180,9 @@ object AiRegionMapper {
         var bestInfo = ""
         for (b in res.bubbles) {
             if (!b.box.intersects(search)) continue
+            // Avoid choosing a large adjacent balloon whose edge merely overlaps
+            // the AI box. The center must be inside the detected bubble.
+            if (!b.isInterior(aiGray.centerX.toInt(), aiGray.centerY.toInt())) continue
             val hb = b.holeBounds() ?: continue
             val inkInside = hb.intersectionArea(search) / max(1f, hb.area)
             if (inkInside < 0.5f) continue
@@ -158,6 +198,40 @@ object AiRegionMapper {
             }
         }
         return best?.let { it to bestInfo }
+    }
+
+    /**
+     * Conservative fallback for tiny AI boxes only, invoked after the existing OPEN
+     * renderer has declined the region. This avoids changing previously successful
+     * render decisions when experimenting with bubble recovery.
+     */
+    private fun bestBubbleFallback(aiGray: BoxF, res: BubbleDetector.Result): Pair<BubbleDetector.Bubble, String>? {
+        // AI often returns the bounding box of a short Japanese word/column rather than
+        // the whole speech bubble. The strict 6x area ratio rejects these legitimate
+        // cases. Only use this fallback when the AI box CENTER really belongs to an
+        // already-detected closed bubble and overlaps its actual text strokes. Never
+        // use the AI box itself to erase pixels.
+        val fallback = ArrayList<Pair<Float, BubbleDetector.Bubble>>()
+        for (b in res.bubbles) {
+            if (!b.isInterior(aiGray.centerX.toInt(), aiGray.centerY.toInt())) continue
+            if (b.box.area > max(1f, aiGray.area) * 72f) continue
+            val hb = b.holeBounds() ?: continue
+            val inside = aiGray.intersectionArea(b.box) / max(1f, aiGray.area)
+            if (inside < 0.7f) continue
+            val inkOverlap = aiGray.intersectionArea(hb) / max(1f, min(aiGray.area, hb.area))
+            if (inkOverlap < 0.25f) continue
+            val cx = abs(aiGray.centerX - hb.centerX) / max(1f, b.width.toFloat())
+            val cy = abs(aiGray.centerY - hb.centerY) / max(1f, b.height.toFloat())
+            val proximity = (1f - (cx + cy) * 0.5f).coerceIn(0f, 1f)
+            fallback += (inkOverlap * inside * proximity) to b
+        }
+        val sorted = fallback.sortedByDescending { it.first }
+        if (sorted.isEmpty()) return null
+        // Ambiguous overlapping candidates are NOT a reason to risk erasing artwork.
+        if (sorted.size > 1 && sorted[0].first < sorted[1].first * 1.3f) return null
+        val chosen = sorted.first().second
+        return chosen to "Khớp dự phòng an toàn: tâm vùng AI nằm trong bong bóng, " +
+            "khung AI giao nét chữ thật; không dùng bbox AI làm mặt nạ xóa"
     }
 
     /**

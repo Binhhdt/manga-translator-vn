@@ -89,6 +89,45 @@ class AiRegionMapperTest {
     }
 
     @Test
+    fun smallAiBoxInsideClosedBubbleUsesSafeFallback() {
+        val g = page()
+        val bubbles = BubbleDetector().detect(g)
+        // A tiny bounding box centered on one glyph, much smaller than the bubble.
+        // Previously the maximum 6x bubble/AI size ratio rejected it.
+        val candidate = region("tiny", "dialogue", 88.0, 57.0, 12.0, 18.0)
+        val result = AiRegionMapper.map(listOf(candidate), w, h, g, 1f, bubbles).single()
+        // A previously working OPEN route must take priority; fallback is only
+        // allowed when the conservative OPEN route refuses to erase safely.
+        assertTrue(result.action == AiRegionMapper.Action.BUBBLE || result.action == AiRegionMapper.Action.OPEN)
+        assertNotNull(result.bubble)
+    }
+
+    @Test
+    fun aiBoxOnArtworkDoesNotUseBubbleFallback() {
+        val g = page()
+        val candidate = region("art", "dialogue", 215.0, 160.0, 15.0, 18.0)
+        val result = AiRegionMapper.map(listOf(candidate), w, h, g, 1f, BubbleDetector().detect(g)).single()
+        assertEquals(AiRegionMapper.Action.SKIP, result.action)
+    }
+
+    @Test
+    fun separateAiTextBoxesMustNotBeMergedJustBecauseDetectorLabelMatches() {
+        val a = BoxF(90f, 80f, 130f, 140f)
+        val b = BoxF(160f, 90f, 205f, 150f)
+        assertFalse(AiRegionMapper.canMergeTextBoxes(a, b))
+        assertTrue(AiRegionMapper.canMergeTextBoxes(a, BoxF(95f, 85f, 133f, 145f)))
+    }
+
+    @Test
+    fun skippedTextRestoreNeverOverwritesDrawnNeighbor() {
+        val source = BoxF(100f, 100f, 150f, 160f)
+        val drawn = BoxF(130f, 140f, 180f, 190f)
+        assertFalse(vn.mangatranslate.app.core.chatgpt.PostRenderCheck.safeToRestore(source, listOf(drawn)))
+        assertTrue(vn.mangatranslate.app.core.chatgpt.PostRenderCheck.safeToRestore(
+            source, listOf(BoxF(190f, 190f, 230f, 230f))))
+    }
+
+    @Test
     fun missingBboxOrTranslationIsSkipped() {
         val g = page()
         val ds = AiRegionMapper.map(

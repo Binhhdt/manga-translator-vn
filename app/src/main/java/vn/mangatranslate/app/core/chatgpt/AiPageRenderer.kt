@@ -99,7 +99,44 @@ class AiPageRenderer {
             textRegions.removeAll { tr -> bad[tr.id - 1] != null }
         }
 
+        // Never silently lose original Japanese from a region that was NOT rendered.
+        // An unrelated bubble's paint/overlay may touch it, even though its own
+        // decision was SKIP/overflow/failed. Restore only that original AI text box,
+        // and only when it does not overlap any successfully rendered region.
+        // This does not invent Vietnamese text; it prevents empty speech bubbles.
+        val successful = decisions.mapIndexedNotNull { i, d ->
+            if (d.action != AiRegionMapper.Action.SKIP && i + 1 !in out.failedIds &&
+                i + 1 !in out.overflowIds) d else null
+        }
+        val successfulIds = successful.flatMap { it.ids }.toSet()
+        val successfulAreas = successful.flatMap { d -> listOfNotNull(d.aiBox, d.layoutBox, d.textBox) }
+        val restored = ArrayList<String>()
+        for (region in regions) {
+            if (region.id in successfulIds) continue
+            val b = region.bbox ?: continue
+            if (b.size != 4) continue
+            val rect = BoxF((b[0] * w).toFloat(), (b[1] * h).toFloat(),
+                ((b[0] + b[2]) * w).toFloat(), ((b[1] + b[3]) * h).toFloat()).clampTo(w.toFloat(), h.toFloat())
+            if (!PostRenderCheck.safeToRestore(rect, successfulAreas)) continue
+            if (rect.area > w.toFloat() * h * 0.10f) continue // avoid giant erroneous AI boxes
+            val l = rect.left.toInt().coerceIn(0, w - 1)
+            val t = rect.top.toInt().coerceIn(0, h - 1)
+            val rr = kotlin.math.ceil(rect.right.toDouble()).toInt().coerceIn(l + 1, w)
+            val bb = kotlin.math.ceil(rect.bottom.toDouble()).toInt().coerceIn(t + 1, h)
+            val bw = rr - l
+            val bh = bb - t
+            val originalPixels = IntArray(bw * bh)
+            val resultPixels = IntArray(bw * bh)
+            original.getPixels(originalPixels, 0, bw, l, t, bw, bh)
+            out.bitmap.getPixels(resultPixels, 0, bw, l, t, bw, bh)
+            if (!originalPixels.contentEquals(resultPixels)) {
+                out.bitmap.setPixels(originalPixels, 0, bw, l, t, bw, bh)
+                restored += region.id
+            }
+        }
+
         val log = StringBuilder()
+        if (restored.isNotEmpty()) log.append("BẢO VỆ CHỮ NHẬT GỐC: khôi phục ${restored.size} vùng chưa chèn nhưng bị vùng khác làm thay đổi (#${restored.joinToString("+")}).\\n")
         log.append("Render thử ChatGPT → ảnh gốc ${w}×$h (ảnh gốc không bị sửa; vẽ trên bản sao)\n")
         log.append("Bong bóng khép kín phát hiện: ${bubbles.bubbles.size}; vùng AI: ${regions.size}\n")
         var drawn = 0
