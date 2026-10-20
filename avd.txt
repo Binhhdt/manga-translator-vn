@@ -1,0 +1,15 @@
+Loading local repository...                                                     [=========                              ] 25% Loading local repository...       [=========                              ] 25% Fetch remote repository...        [=======================================] 100% Fetch remote repository...       
+Auto-selecting single ABI x86_64
++ echo '--- AVD:'
+--- AVD:
++ ls -la /home/runner/.android/avd
+total 16
+drwxr-xr-x 3 runner runner 4096 Oct 20 00:46 .
+drwxr-xr-x 3 runner runner 4096 Oct 20 00:46 ..
+drwxr-xr-x 2 runner runner 4096 Oct 20 00:46 diag.avd
+-rw-r--r-- 1 runner runner   81 Oct 20 00:46 diag.ini
++ emulator -list-avds
+diag
++ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/root        72G   51G   21G  72% /

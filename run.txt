@@ -1,0 +1,466 @@
++ PKG=vn.mangatranslate.app
++ R=res
++ adb wait-for-device
++ adb install -r -g app/build/outputs/apk/debug/app-debug.apk
+Performing Streamed Install
+Success
++ adb shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
++ adb logcat -c
++ adb shell am start -W -n vn.mangatranslate.app/.ui.MainActivity
+Starting: Intent { cmp=vn.mangatranslate.app/.ui.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: vn.mangatranslate.app/.ui.MainActivity
+TotalTime: 4440
+WaitTime: 4486
+Complete
++ sleep 4
++ python3 scripts/diag/ui.py tap 'Thử ChatGPT (thử nghiệm)'
+TAP 'Thử ChatGPT (thử nghiệm)' @ 393,1670
++ sleep 3
++ python3 scripts/diag/ui.py tap 'Continue with ChatGPT'
+TAP 'Continue with ChatGPT' @ 344,682
++ sleep 5
++ adb shell dumpsys activity activities
++ grep -E 'topResumedActivity|mResumedActivity'
++ head -3
+    topResumedActivity=ActivityRecord{add5a7f u0 com.android.chrome/org.chromium.chrome.browser.firstrun.FirstRunActivity t9}
++ probe '5s sau khi mở trình duyệt'
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE 5s sau khi mở trình duyệt @ 00:49:14 pid=2661'
+===== PROBE 5s sau khi mở trình duyệt @ 00:49:14 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-28s298ms rssProcState=20 rssStatType=0 nextRssTime=+18m4s789ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-27s77ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=FGS  set=FGS  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+0+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	R (running)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ grep -i :05AF
++ head -20
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
+  11: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:8552 06 00000000:00000000 03:0000158F 00000000     0        0 0 3 0000000000000000
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457355039556219
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 500 ms'
+thời gian: 500 ms
++ python3 scripts/diag/ui.py chrome_fre
++ sleep 25
++ probe 30s
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE 30s @ 00:49:44 pid=2661'
+===== PROBE 30s @ 00:49:44 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-57s727ms rssProcState=20 rssStatType=0 nextRssTime=+17m35s360ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-56s506ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=FGS  set=FGS  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+do_epoll_wait+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	S (sleeping)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ grep -i :05AF
++ head -20
+   2: 0100007F:8562 0100007F:05AF 06 00000000:00000000 03:00000C12 00000000     0        0 0 3 0000000000000000                                      
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
+  14: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:8552 06 00000000:00000000 03:00000A20 00000000     0        0 0 3 0000000000000000
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457384321065163
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 95 ms'
+thời gian: 95 ms
++ sleep 60
++ probe 90s
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE 90s @ 00:50:44 pid=2661'
+===== PROBE 90s @ 00:50:44 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-1m58s169ms rssProcState=20 rssStatType=0 nextRssTime=+16m34s918ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-1m56s948ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=FGS  set=FGS  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+do_epoll_wait+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	S (sleeping)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ head -20
++ grep -i :05AF
+  10: 0100007F:C192 0100007F:05AF 06 00000000:00000000 03:00000000 00000000     0        0 0 3 0000000000000000                                      
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457444729082905
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 72 ms'
+thời gian: 72 ms
++ sleep 90
++ probe 180s
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE 180s @ 00:52:14 pid=2661'
+===== PROBE 180s @ 00:52:14 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-3m28s498ms rssProcState=20 rssStatType=0 nextRssTime=+15m4s589ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-3m27s277ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=FGS  set=FGS  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+do_epoll_wait+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	S (sleeping)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ grep -i :05AF
++ head -20
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457534917769662
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 31 ms'
+thời gian: 31 ms
++ echo '===== CHROME mở http://127.0.0.1:1455/health'
+===== CHROME mở http://127.0.0.1:1455/health
++ adb shell am start -a android.intent.action.VIEW -d http://127.0.0.1:1455/health com.android.chrome
+Starting: Intent { act=android.intent.action.VIEW dat=http://127.0.0.1:1455/... pkg=com.android.chrome }
++ sleep 3
++ python3 scripts/diag/ui.py chrome_fre
+FRE TAP 'Use without an account'
+FRE TAP 'No thanks'
++ sleep 35
++ adb shell screencap -p /sdcard/chrome_health.png
++ adb pull /sdcard/chrome_health.png res/
+/sdcard/chrome_health.png: 1 file pulled, 0 skipped. 21.8 MB/s (41330 bytes in 0.002s)
++ python3 scripts/diag/ui.py texts
++ head -40
+ok l8JhH70YD5ewI8Pp
+Open the home page
+Your connection to this site is not secure
+127.0.0.1:1455/health
+New tab
+Switch or close tabs
+Customize and control Google Chrome
++ probe 'sau khi Chrome thử'
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE sau khi Chrome thử @ 00:53:09 pid=2661'
+===== PROBE sau khi Chrome thử @ 00:53:09 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-4m23s480ms rssProcState=20 rssStatType=0 nextRssTime=+14m9s607ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-4m22s259ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=FGS  set=FGS  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+  mPreviousProcess: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+do_epoll_wait+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	S (sleeping)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ grep -i :05AF
++ head -20
+   6: 0100007F:A21A 0100007F:05AF 06 00000000:00000000 03:000001F9 00000000     0        0 0 3 0000000000000000                                      
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
+   7: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:C394 06 00000000:00000000 03:000006A6 00000000     0        0 0 3 0000000000000000
+   8: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:C386 06 00000000:00000000 03:000004E0 00000000     0        0 0 3 0000000000000000
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457589899315499
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 32 ms'
+thời gian: 32 ms
++ echo '===== CHROME mở callback giả (state sai, để kiểm tra phản hồi)'
+===== CHROME mở callback giả (state sai, để kiểm tra phản hồi)
++ adb shell am start -a android.intent.action.VIEW -d 'http://127.0.0.1:1455/auth/callback?state=SAI&code=GIA' com.android.chrome
+/system/bin/sh: com.android.chrome: inaccessible or not found
+Starting: Intent { act=android.intent.action.VIEW dat=http://127.0.0.1:1455/... }
++ sleep 35
++ adb shell screencap -p /sdcard/chrome_cb.png
++ adb pull /sdcard/chrome_cb.png res/
+/sdcard/chrome_cb.png: 1 file pulled, 0 skipped. 27.8 MB/s (81122 bytes in 0.003s)
++ python3 scripts/diag/ui.py texts
++ head -40
+Phản hồi đăng nhập không hợp lệ
+Mã state không khớp nên ứng dụng bỏ qua. Hãy đăng nhập lại từ ứng dụng.
+Open the home page
+Your connection to this site is not secure
+127.0.0.1:1455/auth/callback?state=SAI
+New tab
+Switch or close tabs
+Customize and control Google Chrome
++ echo '===== Đưa ứng dụng trở lại trước'
+===== Đưa ứng dụng trở lại trước
++ adb shell am start -n vn.mangatranslate.app/.ui.MainActivity
+Starting: Intent { cmp=vn.mangatranslate.app/.ui.MainActivity }
+Warning: Activity not started, its current task has been brought to the front
++ sleep 5
++ probe 'ứng dụng ở trước'
++ local pid
+++ adb shell pidof vn.mangatranslate.app
+++ tr -d '\r'
++ pid=2661
+++ date +%T
++ echo '===== PROBE ứng dụng ở trước @ 00:53:53 pid=2661'
+===== PROBE ứng dụng ở trước @ 00:53:53 pid=2661
++ echo '--- tiến trình:'
+--- tiến trình:
++ adb shell dumpsys activity processes vn.mangatranslate.app
++ grep -E -i 'ProcessRecord|procState|curAdj|setAdj|frozen|isFreezeExempt|cached'
++ head -20
+  *APP* UID 10209 ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
+    lastRssTime=-5m6s732ms rssProcState=20 rssStatType=0 nextRssTime=+13m26s355ms
+    lastRss=0.00 lastCachedRss=0.00
+    procStateMemTracker: best=4 () / pending state=1 highest=1 1.0x
+    curProcState=2 mRepProcState=2 setProcState=2 lastStateTime=-5m5s511ms
+    cached=false empty=false
+    hasPendingCompaction=false    isFreezeExempt=false isPendingFreeze=false isFrozen=false
+     900: CACHED_APP_MIN_ADJ (  221,184K)
+     999: CACHED_APP_MAX_ADJ (  322,560K)
+        state: cur=TOP  set=TOP  lastRss=0.00 lastCachedRss=0.00
+        cached=false empty=false hasAboveClient=false
+  mHomeProcess: ProcessRecord{4413563 1174:com.google.android.apps.nexuslauncher/u0a177}
+  mPreviousProcess: ProcessRecord{7501456 2457:com.android.chrome/u0a145}
+    PID #2661: ProcessRecord{325bf5c 2661:vn.mangatranslate.app/u0a209}
++ adb shell su 0 cat /proc/2661/wchan
+do_epoll_wait+ echo
+
++ adb shell su 0 grep -E '^State' /proc/2661/status
+State:	S (sleeping)
++ adb shell su 0 sh -c 'cat /sys/fs/cgroup/uid_*/pid_2661/cgroup.freeze /sys/fs/cgroup/apps/uid_*/pid_2661/cgroup.freeze'
++ head -3
++ echo '--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:'
+--- socket cổng 1455 (05AF) [st 0A=LISTEN 01=ESTABLISHED 03=SYN_RECV 08=CLOSE_WAIT; tx_queue:rx_queue]:
++ adb shell su 0 cat /proc/net/tcp /proc/net/tcp6
++ grep -i :05AF
++ head -20
+   2: 0100007F:AD86 0100007F:05AF 08 00000000:00000001 00:00000000 00000000 10145        0 33767 1 0000000000000000 20 4 0 10 -1                     
+   5: 0100007F:AD78 0100007F:05AF 06 00000000:00000000 03:000006AE 00000000     0        0 0 3 0000000000000000                                      
+  10: 0100007F:C9D2 0100007F:05AF 06 00000000:00000000 03:0000068D 00000000     0        0 0 3 0000000000000000                                      
+  13: 0100007F:AD96 0100007F:05AF 08 00000000:00000001 00:00000000 00000000 10145        0 33780 1 0000000000000000 20 4 0 10 -1                     
+   1: 0000000000000000FFFF00000100007F:05AF 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000 10209        0 22778 1 0000000000000000 100 0 0 10 0
+  14: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:AD86 05 00000000:00000000 03:00000CAE 00000000     0        0 0 3 0000000000000000
+  24: 0000000000000000FFFF00000100007F:05AF 0000000000000000FFFF00000100007F:AD96 05 00000000:00000000 03:00000CB6 00000000     0        0 0 3 0000000000000000
++ echo '--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):'
+--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):
+++ date +%s%N
++ local t0=1792457633160465474
++ timeout 20 adb shell 'printf '\''GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n'\'' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=$?'
++ head -12
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+Content-Length: 19
+Cache-Control: no-store
+Connection: close
+
+ok l8JhH70YD5ewI8PpNC_RC=0
++ echo '(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)'
+(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)
+++ date +%s%N
++ echo 'thời gian: 33 ms'
+thời gian: 33 ms
++ python3 scripts/diag/ui.py tap 'Nhật ký' --optional
+TAP 'Nhật ký (không chứa token)' @ 356,1991
++ python3 scripts/diag/ui.py texts
++ head -80
+1. Tài khoản
+Continue with ChatGPT
+2. Mô hình
+Lấy danh sách mô hình
+3. Ảnh manga
+Chọn ảnh
+(chưa chọn)
+Gửi ảnh để đọc và dịch
+Đang chờ đăng nhập trong trình duyệt…
+Hủy
+Nhật ký (không chứa token)
+00:49:09  issuer: https://auth.openai.com&#10;00:49:09  LISTENER_BOUND 127.0.0.1:1455 (backlog 64)&#10;00:49:09  SELF_TEST_OK GET /health → 200 sau 67 ms&#10;00:49:10  FOREGROUND_SERVICE_REQUESTED&#10;00:49:10  Lần đầu: client_id=dynamic_agent_client (đăng ký mới)&#10;00:49:10  REDIRECT_URI_MATCH http://127.0.0.1:1455/auth/callback&#10;00:49:10  BROWSER_OPENED&#10;00:53:09  CALLBACK_ACCEPTED (tham số: state)&#10;00:53:09  HTTP_RESPONSE_SENT 400; STATE_INVALID — bỏ qua callback này, tiếp tục chờ&#10;00:53:24  CONNECTION_ERROR java.net.SocketTimeoutException: Read timed out&#10;00:53:24  CONNECTION_ERROR java.net.SocketTimeoutException: Read timed out
+Quay lại
+Thử ChatGPT (A–C)
++ adb shell screencap -p /sdcard/app.png
++ adb pull /sdcard/app.png res/
+/sdcard/app.png: 1 file pulled, 0 skipped. 64.0 MB/s (184135 bytes in 0.003s)
++ adb logcat -d -v time
++ grep -E -i 'MTV-OAuth|freez|mangatranslate|AndroidRuntime|ForegroundService' res/logcat_full.txt
++ head -300
++ exit 0
