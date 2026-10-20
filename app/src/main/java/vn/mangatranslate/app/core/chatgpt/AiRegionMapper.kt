@@ -157,7 +157,34 @@ object AiRegionMapper {
                     "vùng AI nằm ${pct(aiCovered)}% trong bong bóng"
             }
         }
-        return best?.let { it to bestInfo }
+        if (best != null) return best to bestInfo
+
+        // AI often returns the bounding box of a short Japanese word/column rather than
+        // the whole speech bubble. The strict 6x area ratio rejects these legitimate
+        // cases. Only use this fallback when the AI box CENTER really belongs to an
+        // already-detected closed bubble and overlaps its actual text strokes. Never
+        // use the AI box itself to erase pixels.
+        val fallback = ArrayList<Pair<Float, BubbleDetector.Bubble>>()
+        for (b in res.bubbles) {
+            if (!b.isInterior(aiGray.centerX.toInt(), aiGray.centerY.toInt())) continue
+            if (b.box.area > max(1f, aiGray.area) * 72f) continue
+            val hb = b.holeBounds() ?: continue
+            val inside = aiGray.intersectionArea(b.box) / max(1f, aiGray.area)
+            if (inside < 0.7f) continue
+            val inkOverlap = aiGray.intersectionArea(hb) / max(1f, min(aiGray.area, hb.area))
+            if (inkOverlap < 0.25f) continue
+            val cx = abs(aiGray.centerX - hb.centerX) / max(1f, b.width.toFloat())
+            val cy = abs(aiGray.centerY - hb.centerY) / max(1f, b.height.toFloat())
+            val proximity = (1f - (cx + cy) * 0.5f).coerceIn(0f, 1f)
+            fallback += (inkOverlap * inside * proximity) to b
+        }
+        val sorted = fallback.sortedByDescending { it.first }
+        if (sorted.isEmpty()) return null
+        // Ambiguous overlapping candidates are NOT a reason to risk erasing artwork.
+        if (sorted.size > 1 && sorted[0].first < sorted[1].first * 1.3f) return null
+        val chosen = sorted.first().second
+        return chosen to "Khớp dự phòng an toàn: tâm vùng AI nằm trong bong bóng, " +
+            "khung AI giao nét chữ thật; không dùng bbox AI làm mặt nạ xóa"
     }
 
     /**
