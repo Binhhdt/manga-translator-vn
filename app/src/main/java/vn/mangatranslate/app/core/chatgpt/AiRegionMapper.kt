@@ -78,7 +78,14 @@ object AiRegionMapper {
 
             // 1) Bong bóng khép kín khớp với vùng AI?
             val aiGray = BoxF(ai.left * s, ai.top * s, ai.right * s, ai.bottom * s)
-            val match = bestBubble(aiGray, bubbles)
+            // Preserve the pre-existing OPEN rendering whenever it works.
+            // A fallback bubble match must never replace a region that previously
+            // rendered successfully; that caused visible Japanese-text regressions.
+            val strictMatch = bestBubble(aiGray, bubbles)
+            val openCandidate = if (strictMatch == null) overlayOrSkip(r, ai, gray, s, width, height) else null
+            val match = strictMatch ?: if (openCandidate?.action == Action.SKIP) {
+                bestBubbleFallback(aiGray, bubbles)
+            } else null
             if (match != null) {
                 val (b0, why) = match
                 val prev = byBubble[b0.label]
@@ -127,7 +134,7 @@ object AiRegionMapper {
             }
 
             // 2) Không có bong bóng: chỉ phủ khi nền quanh nét chữ thật sự sáng.
-            out += overlayOrSkip(r, ai, gray, s, width, height)
+            out += openCandidate ?: overlayOrSkip(r, ai, gray, s, width, height)
         }
         return out
     }
@@ -157,8 +164,15 @@ object AiRegionMapper {
                     "vùng AI nằm ${pct(aiCovered)}% trong bong bóng"
             }
         }
-        if (best != null) return best to bestInfo
+        return best?.let { it to bestInfo }
+    }
 
+    /**
+     * Conservative fallback for tiny AI boxes only, invoked after the existing OPEN
+     * renderer has declined the region. This avoids changing previously successful
+     * render decisions when experimenting with bubble recovery.
+     */
+    private fun bestBubbleFallback(aiGray: BoxF, res: BubbleDetector.Result): Pair<BubbleDetector.Bubble, String>? {
         // AI often returns the bounding box of a short Japanese word/column rather than
         // the whole speech bubble. The strict 6x area ratio rejects these legitimate
         // cases. Only use this fallback when the AI box CENTER really belongs to an
