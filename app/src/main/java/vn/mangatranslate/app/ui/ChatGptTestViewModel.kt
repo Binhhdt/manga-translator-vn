@@ -46,7 +46,12 @@ data class ChatGptTestState(
     val batchPages: List<String> = emptyList(),
     val batchRows: List<BatchRow> = emptyList(),
     val batchLocation: String? = null,
-    val batchFailed: List<String> = emptyList()
+    val batchFailed: List<String> = emptyList(),
+    /** Giai đoạn E: render 1 trang. */
+    val renderJsonName: String? = null,
+    val renderPreview: android.graphics.Bitmap? = null,
+    val renderLog: String? = null,
+    val renderLocation: String? = null
 )
 
 /** Kết quả một trang trong lượt thử nhiều trang. */
@@ -228,9 +233,14 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
             "Gốc ${w}×${h} → gửi ${(w * minOf(1f, MAX_SIDE.toFloat() / maxOf(w, h))).toInt()}×${(h * minOf(1f, MAX_SIDE.toFloat() / maxOf(w, h))).toInt()} JPEG ${bytes.size / 1024} KB"
     }
 
+    private var imageUri: Uri? = null
+
     fun pickImage(uri: Uri, name: String?) = run("Đang chuẩn bị ảnh…") {
         val (url, info) = withContext(Dispatchers.Default) { encodeImage(uri) }
         imageDataUrl = url
+        imageUri = uri
+        renderJsonText = null
+        _state.update { it.copy(renderJsonName = null, renderPreview = null, renderLog = null, renderLocation = null) }
         _state.update { it.copy(imageName = name ?: uri.lastPathSegment, imageInfo = info) }
         log("Ảnh: ${name ?: uri.lastPathSegment} — $info")
     }
@@ -383,6 +393,61 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
             rows.forEachIndexed { i, r ->
                 append("${i + 1}. ${r.name}: ${r.status}  ${"%.1f".format(r.seconds)} s  vùng=${r.regions}  cần kiểm tra=${r.uncertain}  vấn đề JSON=${r.problems}  token=${r.totalTokens ?: "?"}\n")
             }
+        }
+    }
+
+    // ---------------------------------------------------------------- giai đoạn E: chèn tiếng Việt lên 1 trang
+
+    private var renderJsonText: String? = null
+
+    /** Dùng tệp JSON đã lưu ở lượt nhiều trang (không phải gửi lại ảnh cho ChatGPT). */
+    fun pickRenderJson(uri: Uri, name: String?) = run("Đang đọc JSON…") {
+        val text = withContext(Dispatchers.IO) {
+            getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        } ?: throw IllegalStateException("Không đọc được tệp")
+        val p = MangaJson.parse(text)
+        if (p.regions.isEmpty()) throw IllegalStateException("JSON không có vùng nào: ${p.problems.joinToString()}")
+        renderJsonText = text
+        _state.update { it.copy(renderJsonName = name ?: uri.lastPathSegment) }
+        log("JSON để render: ${name ?: uri.lastPathSegment} — ${p.regions.size} vùng, ${p.problems.size} vấn đề")
+    }
+
+    /**
+     * Chèn bản dịch lên ảnh gốc (bản sao) và lưu: ảnh gốc (sao chép nguyên byte), JSON, ảnh đã chèn, nhật ký từng vùng.
+     */
+    fun renderPage() {
+        val uri = imageUri ?: return log("Chưa chọn ảnh ở mục 3.")
+        val json = renderJsonText ?: _state.value.reply?.takeIf { it.ok && _state.value.parsed != null }?.text
+            ?: return log("Chưa có JSON: gửi ảnh ở mục 3 hoặc chọn tệp JSON đã lưu.")
+        val name = _state.value.imageName ?: "trang"
+        run("Đang chèn tiếng Việt lên ảnh…") {
+            val app = getApplication<Application>()
+            val parsed = MangaJson.parse(json)
+            if (parsed.regions.isEmpty()) throw IllegalStateException("JSON không có vùng nào.")
+            val loaded = vn.mangatranslate.app.core.image.ImageLoader(app).loadFull(uri)
+            if (loaded.sampleSize > 1) log("Ảnh rất lớn: giải mã ở 1/${loaded.sampleSize} độ phân giải.")
+            val result = withContext(Dispatchers.Default) { vn.mangatranslate.app.core.chatgpt.AiPageRenderer().render(loaded.bitmap, parsed.regions) }
+            val runId = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val writer = TestRunWriter(app, runId, "render_test")
+            val base = name.substringBeforeLast('.')
+            withContext(Dispatchers.IO) {
+                val origBytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    ?: throw IllegalStateException("Không đọc lại được ảnh gốc")
+                val ext = name.substringAfterLast('.', "jpg").lowercase()
+                writer.writeBytes("1_goc_$name", origBytes, if (ext == "png") "image/png" else if (ext == "webp") "image/webp" else "image/jpeg")
+                writer.write("2_${base}.json", json, "application/json")
+                val png = ByteArrayOutputStream().also { result.bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+                writer.writeBytes("3_${base}_vi.png", png, "image/png")
+                writer.write("4_render_log.txt", result.log)
+            }
+            // Ảnh xem trước nhỏ để không tốn RAM.
+            val bmp = result.bitmap
+            val sc = minOf(1f, 1400f / maxOf(bmp.width, bmp.height))
+            val preview = if (sc < 1f) Bitmap.createScaledBitmap(bmp, (bmp.width * sc).toInt(), (bmp.height * sc).toInt(), true) else bmp
+            if (preview !== bmp) bmp.recycle()
+            loaded.bitmap.recycle()
+            _state.update { it.copy(renderPreview = preview, renderLog = result.log, renderLocation = writer.location) }
+            log("Render xong: vẽ ${result.drawn} vùng, giữ nguyên ${result.skipped} vùng; điểm ảnh đổi ngoài vùng cho phép: ${result.changedOutside}. Lưu tại ${writer.location}")
         }
     }
 

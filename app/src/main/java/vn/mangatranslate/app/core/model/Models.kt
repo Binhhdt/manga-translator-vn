@@ -64,7 +64,12 @@ data class TextRegion(
     /** Người dùng đã xem và bấm "Lưu bản dịch" → được vẽ lên ảnh dù từng bị đánh dấu cần kiểm tra. */
     val confirmed: Boolean = false,
     /** Vết xử lý cho màn hình DEBUG. */
-    val trace: RegionTrace? = null
+    val trace: RegionTrace? = null,
+    /**
+     * Vùng phủ nền sáng CHÍNH XÁC đã được kiểm tra không đè nét vẽ (chỉ dùng cho vùng không có bong bóng khép kín,
+     * do AiRegionMapper tính). null = cách cũ (khung chữ + lề).
+     */
+    val coverBox: BoxF? = null
 ) {
     val needsReview: Boolean get() = reviewNotes.isNotEmpty()
 

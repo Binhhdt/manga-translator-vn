@@ -122,6 +122,11 @@ class VietnameseTextRenderer {
             cover = intersect(r.box.expand(pad).union(shape.inner), shape.box)?.clampTo(w, h) ?: return
             area = shape.inner
             limit = intersect(shape.inner.expand(shape.inner.width * 0.08f, shape.inner.height * 0.08f), shape.box) ?: shape.inner
+        } else if (r.coverBox != null) {
+            // Vùng phủ đã kiểm tra trước (không đè nét vẽ) ∪ khoảng trắng đặt chữ.
+            cover = r.coverBox.union(r.layoutBox ?: r.coverBox).clampTo(w, h)
+            area = r.layoutBox?.clampTo(w, h) ?: cover
+            limit = cover
         } else {
             cover = (r.layoutBox ?: r.box).union(r.box.expand(pad)).clampTo(w, h)
             area = cover

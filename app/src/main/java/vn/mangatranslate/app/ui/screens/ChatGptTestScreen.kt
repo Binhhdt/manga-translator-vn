@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +80,16 @@ fun ChatGptTestScreen(main: MainViewModel, vm: ChatGptTestViewModel = viewModel(
                     }
                 }.getOrNull() ?: u.lastPathSegment ?: "trang")
             })
+        }
+    }
+    val jsonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val name = runCatching {
+                ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                    if (c.moveToFirst()) c.getString(0) else null
+                }
+            }.getOrNull()
+            vm.pickRenderJson(uri, name)
         }
     }
     val signedIn = s.account != null
@@ -181,6 +192,35 @@ fun ChatGptTestScreen(main: MainViewModel, vm: ChatGptTestViewModel = viewModel(
                         color = if (r.status == "completed" || r.status == "chờ" || r.status == "đang gửi") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
                     )
                 }
+            }
+
+            // ---- E: chèn tiếng Việt lên 1 trang
+            Section("5. Chèn tiếng Việt lên ảnh (1 trang)") {
+                Text(
+                    "Dùng ảnh đã chọn ở mục 3 và kết quả JSON của ảnh đó — hoặc chọn tệp JSON đã lưu ở lượt nhiều trang " +
+                        "(không phải gửi lại cho ChatGPT). Chỉ xóa nét chữ trong bong bóng khép kín; chữ ngoài bong bóng chỉ phủ " +
+                        "khi nền quanh chữ sáng; không chắc chắn thì giữ nguyên ảnh.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { jsonPicker.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }, enabled = idle) {
+                        Text("Chọn tệp JSON đã lưu")
+                    }
+                    Text(s.renderJsonName ?: if (s.parsed != null) "(dùng kết quả mục 3)" else "(chưa có)", style = MaterialTheme.typography.bodySmall)
+                }
+                Button(onClick = vm::renderPage, enabled = idle && s.imageName != null && (s.renderJsonName != null || s.parsed != null)) {
+                    Text("Chèn tiếng Việt và lưu")
+                }
+                s.renderLocation?.let { Text("Lưu tại: $it", style = MaterialTheme.typography.bodySmall) }
+                s.renderPreview?.let { bmp ->
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = "Ảnh đã chèn tiếng Việt",
+                        modifier = Modifier.fillMaxWidth(),
+                        contentScale = androidx.compose.ui.layout.ContentScale.FillWidth
+                    )
+                }
+                s.renderLog?.let { Mono(it) }
             }
 
             if (s.limitReached) {
