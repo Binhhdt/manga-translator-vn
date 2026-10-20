@@ -115,8 +115,19 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
         val sorted = items.sortedWith { a, b -> NaturalOrderComparator.compare(a.second, b.second) }
         if (sorted.size > MAX_PAGES) log("Bản thử nghiệm: chỉ lấy $MAX_PAGES trang đầu (đã chọn ${sorted.size}).")
         val chosen = sorted.take(MAX_PAGES)
-        for ((u, _) in chosen) runCatching {
+        // SAF has a device-dependent limit on persisted URI grants. Before a new
+        // run replaces the previous one, release stale image grants so choosing
+        // 100 pages does not silently exhaust that limit on the user's phone.
+        val selectedUris = chosen.map { it.first }.toSet()
+        for (old in app.contentResolver.persistedUriPermissions) {
+            if (old.isReadPermission && old.uri !in selectedUris) runCatching {
+                app.contentResolver.releasePersistableUriPermission(old.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        for ((u, name) in chosen) runCatching {
             app.contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.onFailure {
+            log("Không giữ được quyền đọc lâu dài cho $name: ${it.message}. Khi mở lại ứng dụng có thể phải chọn lại ảnh.")
         }
         val model = _state.value.model ?: "?"
         val id = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -479,7 +490,7 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        /** Giai đoạn thử nghiệm: tối đa 10 trang/lượt (chưa chạy cả chương). */
-        const val MAX_PAGES = 10
+        /** Tối đa 100 trang/lượt; có thể tiếp tục khi giới hạn ChatGPT được khôi phục. */
+        const val MAX_PAGES = 100
     }
 }
