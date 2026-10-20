@@ -41,7 +41,13 @@ jobs:
         run: chmod +x gradlew
 
       - name: Chạy unit test
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee gradle_test.log || {
+            # Đưa lỗi biên dịch / test thất bại lên chú thích (annotation) để đọc được mà không cần tải log.
+            grep -E "^e: |FAILED|AssertionError|Exception" gradle_test.log | head -30 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
 
       - name: Build APK debug
         run: ./gradlew --no-daemon assembleDebug
