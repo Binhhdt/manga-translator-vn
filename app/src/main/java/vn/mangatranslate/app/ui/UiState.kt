@@ -6,7 +6,7 @@ import vn.mangatranslate.app.core.model.SourceLanguage
 import vn.mangatranslate.app.core.model.TextRegion
 import vn.mangatranslate.app.data.AppSettings
 
-enum class Screen { HOME, READER, SETTINGS, DEBUG, MT_TEST, CHATGPT }
+enum class Screen { HOME, READER, SETTINGS, DEBUG, MT_TEST, CHATGPT, AUTO }
 
 enum class ReaderMode { VIEW, EDIT, ADD_REGION }
 
