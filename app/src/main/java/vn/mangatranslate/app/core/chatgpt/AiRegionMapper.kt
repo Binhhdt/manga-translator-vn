@@ -83,10 +83,18 @@ object AiRegionMapper {
                 val (b0, why) = match
                 val prev = byBubble[b0.label]
                 if (prev != null) {
-                    // Hai câu AI cùng một bong bóng → gộp, vẽ một lần.
+                    // A detector component may contain several separate speech bubbles.
+                    // Never combine unrelated sentences merely because labels match.
                     val d = out[prev]
-                    out[prev] = d.copy(ids = d.ids + r.id, ja = d.ja + " " + r.ja, vi = d.vi + " " + r.vi,
-                        reason = d.reason + "; gộp vùng #${r.id} (cùng bong bóng)")
+                    val overlap = d.aiBox.intersectionArea(ai) / max(1f, min(d.aiBox.area, ai.area))
+                    if (overlap >= 0.30f) {
+                        out[prev] = d.copy(ids = d.ids + r.id, ja = d.ja + " " + r.ja, vi = d.vi + " " + r.vi,
+                            reason = d.reason + "; gộp vùng #${r.id} (nét chữ chồng lấn)")
+                        continue
+                    }
+                    // Isolated text handling protects the other original sentence;
+                    // if it cannot be separated safely, the original remains intact.
+                    out += overlayOrSkip(r, ai, gray, s, width, height)
                     continue
                 }
                 // Lòng trắng có "lỗ" lớn không giống chữ (tóc, tay, mảng tranh bị nền trắng bao quanh) thì KHÔNG phải
