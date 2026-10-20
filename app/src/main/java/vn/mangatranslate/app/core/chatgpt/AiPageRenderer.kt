@@ -104,6 +104,14 @@ class AiPageRenderer {
                 }
                 val candidatePixels = IntArray(w * h)
                 solo.bitmap.getPixels(candidatePixels, 0, w, 0, 0, w, h)
+                // Retain the previous artwork-damage safeguard, now applied
+                // *before* any candidate can affect the final composite.
+                val candidateGray = BitmapGray.fromBitmap(solo.bitmap).image.pixels
+                val damage = PostRenderCheck.damage(w, h, og, candidateGray, d)
+                if (damage != null) {
+                    rejected[id] = "Nguy cơ xóa hình vẽ: $damage"
+                    return@forEach
+                }
                 val otherBoxes = regions.filter { it.id !in d.ids }.mapNotNull { r ->
                     r.bbox?.takeIf { it.size == 4 }?.let { b ->
                         BoxF((b[0] * w).toFloat(), (b[1] * h).toFloat(),
