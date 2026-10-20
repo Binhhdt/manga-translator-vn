@@ -114,7 +114,7 @@ fun AutoTranslateScreen(main: MainViewModel, vm: AutoTranslateViewModel = viewMo
             // ---- Chọn trang & điều khiển
             val run = s.run
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }, enabled = idle) { Text("Chọn ảnh (tối đa 10)") }
+                OutlinedButton(onClick = { picker.launch(arrayOf("image/*")) }, enabled = idle) { Text("Chọn ảnh (tối đa 100)") }
                 if (run != null) Text("${run.pages.size} trang", style = MaterialTheme.typography.bodySmall)
             }
             if (run != null) {
