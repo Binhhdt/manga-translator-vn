@@ -18,6 +18,12 @@ import kotlin.math.max
  */
 object PostRenderCheck {
 
+    /** Only restore skipped source text when no successfully drawn area can overlap it. */
+    fun safeToRestore(box: BoxF, drawnAreas: List<BoxF>): Boolean {
+        if (box.width < 2f || box.height < 2f) return false
+        return drawnAreas.none { area -> box.intersects(area) }
+    }
+
     enum class Cat(val code: String, val label: String) {
         OK("OK", "đã chèn"),
         B("B", "có bản dịch nhưng chưa chèn"),
