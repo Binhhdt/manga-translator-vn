@@ -20,6 +20,7 @@ import vn.mangatranslate.app.core.chatgpt.ChatGptClient
 import vn.mangatranslate.app.core.chatgpt.MangaJson
 import vn.mangatranslate.app.core.chatgpt.OAuthUtil
 import vn.mangatranslate.app.core.chatgpt.OAuthWaitService
+import vn.mangatranslate.app.core.chatgpt.TestRunWriter
 import vn.mangatranslate.app.core.chatgpt.TokenStore
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -40,7 +41,25 @@ data class ChatGptTestState(
     val output: String = "",
     val reply: ChatGptClient.Reply? = null,
     val parsed: MangaJson.Parsed? = null,
-    val limitReached: Boolean = false
+    val limitReached: Boolean = false,
+    /** Giai đoạn D: nhiều trang. */
+    val batchPages: List<String> = emptyList(),
+    val batchRows: List<BatchRow> = emptyList(),
+    val batchLocation: String? = null
+)
+
+/** Kết quả một trang trong lượt thử nhiều trang. */
+data class BatchRow(
+    val name: String,
+    val status: String,
+    val seconds: Double = 0.0,
+    val regions: Int = 0,
+    val uncertain: Int = 0,
+    val problems: Int = 0,
+    val inputTokens: Long? = null,
+    val outputTokens: Long? = null,
+    val totalTokens: Long? = null,
+    val error: String? = null
 )
 
 /**
@@ -187,28 +206,146 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Đọc ảnh, thu nhỏ cạnh dài về tối đa 2048 px (đủ đọc chữ, giảm dung lượng gửi), mã hóa JPEG. Ảnh gốc không bị đổi. */
+    private fun encodeImage(uri: Uri): Pair<String, String> {
+        val cr = getApplication<Application>().contentResolver
+        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        cr.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, opts) }
+        val w = opts.outWidth; val h = opts.outHeight
+        if (w <= 0 || h <= 0) throw IllegalStateException("Không đọc được ảnh.")
+        var sample = 1
+        while (maxOf(w, h) / (sample * 2) >= MAX_SIDE) sample *= 2
+        val decoded = cr.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
+            ?: throw IllegalStateException("Không giải mã được ảnh.")
+        val scale = minOf(1f, MAX_SIDE.toFloat() / maxOf(decoded.width, decoded.height))
+        val bmp = if (scale < 1f) Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true) else decoded
+        val bos = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.JPEG, 88, bos)
+        if (bmp !== decoded) bmp.recycle()
+        decoded.recycle()
+        val bytes = bos.toByteArray()
+        return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes) to
+            "Gốc ${w}×${h} → gửi ${(w * minOf(1f, MAX_SIDE.toFloat() / maxOf(w, h))).toInt()}×${(h * minOf(1f, MAX_SIDE.toFloat() / maxOf(w, h))).toInt()} JPEG ${bytes.size / 1024} KB"
+    }
+
     fun pickImage(uri: Uri, name: String?) = run("Đang chuẩn bị ảnh…") {
-        val (url, info) = withContext(Dispatchers.Default) {
-            val cr = getApplication<Application>().contentResolver
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            cr.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, opts) }
-            val w = opts.outWidth; val h = opts.outHeight
-            if (w <= 0 || h <= 0) throw IllegalStateException("Không đọc được ảnh.")
-            var sample = 1
-            while (maxOf(w, h) / (sample * 2) >= MAX_SIDE) sample *= 2
-            val decoded = cr.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample }) }
-                ?: throw IllegalStateException("Không giải mã được ảnh.")
-            val scale = minOf(1f, MAX_SIDE.toFloat() / maxOf(decoded.width, decoded.height))
-            val bmp = if (scale < 1f) Bitmap.createScaledBitmap(decoded, (decoded.width * scale).toInt(), (decoded.height * scale).toInt(), true) else decoded
-            val bos = ByteArrayOutputStream()
-            bmp.compress(Bitmap.CompressFormat.JPEG, 88, bos)
-            val bytes = bos.toByteArray()
-            "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes) to
-                "Gốc ${w}×${h} → gửi ${bmp.width}×${bmp.height} JPEG ${bytes.size / 1024} KB"
-        }
+        val (url, info) = withContext(Dispatchers.Default) { encodeImage(uri) }
         imageDataUrl = url
         _state.update { it.copy(imageName = name ?: uri.lastPathSegment, imageInfo = info) }
         log("Ảnh: ${name ?: uri.lastPathSegment} — $info")
+    }
+
+    // ---------------------------------------------------------------- giai đoạn D: 5–10 trang
+
+    private var batchUris: List<Pair<Uri, String>> = emptyList()
+
+    /** Nhận các ảnh đã chọn, sắp theo thứ tự trang (tên tệp, số tự nhiên: 2 < 10). Tối đa [MAX_BATCH] trang. */
+    fun pickBatch(items: List<Pair<Uri, String>>) {
+        val sorted = items.sortedWith { a, b -> vn.mangatranslate.app.core.util.NaturalOrderComparator.compare(a.second, b.second) }
+        if (sorted.size > MAX_BATCH) log("Chọn ${sorted.size} ảnh — chỉ lấy $MAX_BATCH trang đầu cho bài thử.")
+        batchUris = sorted.take(MAX_BATCH)
+        _state.update { it.copy(batchPages = batchUris.map { p -> p.second }, batchRows = emptyList(), batchLocation = null) }
+        log("Đã chọn ${batchUris.size} trang: ${batchUris.joinToString { it.second }}")
+    }
+
+    /**
+     * Dịch tuần tự từng trang, lưu JSON + báo cáo ngay sau mỗi trang (trang đã xong không mất nếu dừng giữa chừng).
+     * Gặp giới hạn gói: dừng gửi trang mới, giữ kết quả đã có.
+     */
+    fun runBatch() {
+        if (_state.value.limitReached) return log("Đã chạm giới hạn sử dụng — không gửi yêu cầu mới.")
+        val model = _state.value.selectedModel ?: return log("Chưa chọn mô hình.")
+        val pages = batchUris
+        if (pages.isEmpty()) return log("Chưa chọn trang nào.")
+        run("Đang dịch thử ${pages.size} trang…") {
+            val app = getApplication<Application>()
+            val runId = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val writer = TestRunWriter(app, runId)
+            _state.update { it.copy(batchRows = pages.map { p -> BatchRow(p.second, "chờ") }, batchLocation = writer.location) }
+            log("Lượt thử $runId, mô hình $model, lưu tại ${writer.location}")
+            val rows = pages.map { BatchRow(it.second, "chờ") }.toMutableList()
+            val report = StringBuilder()
+            fun saveReport() = runCatching {
+                writer.write("bao_cao.txt", reportHeader(runId, model, rows) + report.toString())
+            }.onFailure { log("Không lưu được báo cáo: ${it.javaClass.name}: ${it.message}") }
+
+            for ((i, page) in pages.withIndex()) {
+                val (uri, name) = page
+                rows[i] = rows[i].copy(status = "đang gửi")
+                _state.update { it.copy(batchRows = rows.toList(), busy = "Trang ${i + 1}/${pages.size}: $name") }
+                val token = tokenForInference() ?: break
+                val (img, info) = try {
+                    withContext(Dispatchers.Default) { encodeImage(uri) }
+                } catch (e: Exception) {
+                    rows[i] = rows[i].copy(status = "lỗi ảnh", error = "${e.javaClass.name}: ${e.message}")
+                    report.append("\n## ${i + 1}. $name — LỖI ẢNH: ${e.message}\n")
+                    saveReport(); continue
+                }
+                val t0 = System.currentTimeMillis()
+                val reply = try {
+                    withContext(Dispatchers.IO) {
+                        client.respond(token, model, ChatGptClient.MANGA_INSTRUCTIONS,
+                            "Đọc và dịch trang truyện này. Chỉ trả về JSON theo mẫu.", img)
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    rows[i] = rows[i].copy(status = "lỗi mạng", error = "${e.javaClass.name}: ${e.message}")
+                    report.append("\n## ${i + 1}. $name — LỖI MẠNG: ${e.javaClass.name}: ${e.message}\n")
+                    log("Trang $name: ${e.javaClass.name}: ${e.message}")
+                    saveReport(); continue
+                }
+                val secs = (System.currentTimeMillis() - t0) / 1000.0
+                val usage = reply.usage?.let { runCatching { org.json.JSONObject(it) }.getOrNull() }
+                val parsed = if (reply.ok) MangaJson.parse(reply.text) else null
+                rows[i] = rows[i].copy(
+                    status = reply.status, seconds = secs,
+                    regions = parsed?.regions?.size ?: 0,
+                    uncertain = parsed?.regions?.count { it.uncertain } ?: 0,
+                    problems = parsed?.problems?.size ?: 0,
+                    inputTokens = usage?.optLong("input_tokens"),
+                    outputTokens = usage?.optLong("output_tokens"),
+                    totalTokens = usage?.optLong("total_tokens"),
+                    error = listOfNotNull(reply.errorCode, reply.errorMessage?.take(300)).joinToString(" ").ifEmpty { null }
+                )
+                log("Trang ${i + 1}/${pages.size} $name: ${reply.status}, ${"%.1f".format(secs)} s, " +
+                    "${rows[i].regions} vùng, ${rows[i].problems} vấn đề, token ${rows[i].totalTokens ?: "?"}")
+                // Lưu ngay: JSON thô của AI + phần báo cáo của trang.
+                runCatching { writer.write(name.substringBeforeLast('.') + ".json", reply.text.ifEmpty { "{}" }, "application/json") }
+                    .onFailure { log("Không lưu được JSON trang $name: ${it.message}") }
+                report.append("\n## ${i + 1}. $name — ${reply.status}, ${"%.1f".format(secs)} s, $info\n")
+                rows[i].error?.let { report.append("Lỗi: $it\n") }
+                parsed?.problems?.forEach { report.append("! $it\n") }
+                parsed?.regions?.forEach { r ->
+                    report.append("#${r.id} [${r.type}]${if (r.uncertain) " (cần kiểm tra)" else ""} bbox=${r.bbox?.joinToString(",") { "%.3f".format(Locale.US, it) }}\n")
+                    report.append("  JA: ${r.ja}\n  VI: ${r.vi}\n")
+                }
+                saveReport()
+                _state.update { it.copy(batchRows = rows.toList()) }
+                if (reply.limitReached) {
+                    log("Chạm giới hạn sử dụng ở trang ${i + 1}. Dừng; ${i} trang trước đã được lưu.")
+                    _state.update { it.copy(limitReached = true) }
+                    for (j in i + 1 until rows.size) rows[j] = rows[j].copy(status = "chưa gửi (giới hạn)")
+                    _state.update { it.copy(batchRows = rows.toList()) }
+                    saveReport()
+                    break
+                }
+            }
+            log("Xong lượt thử. Báo cáo: ${writer.location}/bao_cao.txt")
+        }
+    }
+
+    private fun reportHeader(runId: String, model: String, rows: List<BatchRow>): String {
+        val ok = rows.count { it.status == "completed" }
+        val tokens = rows.mapNotNull { it.totalTokens }.sum()
+        return buildString {
+            append("Manga Translator VN — thử ChatGPT nhiều trang (giai đoạn D)\n")
+            append("Lượt: $runId  Mô hình: $model\n")
+            append("Thành công: $ok/${rows.size}  Lỗi: ${rows.count { it.status != "completed" && it.status != "chờ" && !it.status.startsWith("chưa") }}\n")
+            append("Tổng token máy chủ báo: $tokens (chỉ để tham khảo; không suy ra số trang/ngày)\n")
+            append("Vị trí bbox là ước lượng của AI (tỉ lệ 0..1).\n\n")
+            rows.forEachIndexed { i, r ->
+                append("${i + 1}. ${r.name}: ${r.status}  ${"%.1f".format(r.seconds)} s  vùng=${r.regions}  cần kiểm tra=${r.uncertain}  vấn đề JSON=${r.problems}  token=${r.totalTokens ?: "?"}\n")
+            }
+        }
     }
 
     override fun onCleared() {
@@ -219,5 +356,6 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MAX_SIDE = 2048
+        const val MAX_BATCH = 10
     }
 }

@@ -70,6 +70,17 @@ fun ChatGptTestScreen(main: MainViewModel, vm: ChatGptTestViewModel = viewModel(
             vm.pickImage(uri, name)
         }
     }
+    val multiPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            vm.pickBatch(uris.map { u ->
+                u to (runCatching {
+                    ctx.contentResolver.query(u, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                        if (c.moveToFirst()) c.getString(0) else null
+                    }
+                }.getOrNull() ?: u.lastPathSegment ?: "trang")
+            })
+        }
+    }
     val signedIn = s.account != null
     val planOk = OAuthUtil.hasPlanScope(s.account?.scopes)
     val idle = s.busy == null
@@ -143,6 +154,29 @@ fun ChatGptTestScreen(main: MainViewModel, vm: ChatGptTestViewModel = viewModel(
                 s.imageInfo?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Button(onClick = vm::sendImage, enabled = idle && s.selectedModel != null && s.imageName != null && !s.limitReached) {
                     Text("Gửi ảnh để đọc và dịch")
+                }
+            }
+
+            // ---- D: nhiều trang
+            Section("4. Dịch thử nhiều trang (5–10 trang)") {
+                Text("Mỗi trang là một yêu cầu riêng. Kết quả lưu ngay sau từng trang; gặp giới hạn gói thì dừng và giữ trang đã xong.",
+                    style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { multiPicker.launch("image/*") }, enabled = idle) { Text("Chọn các trang") }
+                    Text(if (s.batchPages.isEmpty()) "(chưa chọn)" else "${s.batchPages.size} trang", style = MaterialTheme.typography.bodySmall)
+                }
+                Button(onClick = vm::runBatch, enabled = idle && s.selectedModel != null && s.batchPages.isNotEmpty() && !s.limitReached) {
+                    Text("Bắt đầu dịch thử")
+                }
+                s.batchLocation?.let { Text("Lưu tại: $it", style = MaterialTheme.typography.bodySmall) }
+                s.batchRows.forEachIndexed { i, r ->
+                    Text(
+                        "${i + 1}. ${r.name}: ${r.status}" +
+                            (if (r.status == "completed") " · ${"%.1f".format(r.seconds)} s · ${r.regions} vùng · ${r.uncertain} cần kiểm tra · ${r.problems} vấn đề · ${r.totalTokens ?: "?"} token" else "") +
+                            (r.error?.let { " · $it" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (r.status == "completed" || r.status == "chờ" || r.status == "đang gửi") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                    )
                 }
             }
 

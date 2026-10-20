@@ -12,8 +12,8 @@ android {
         applicationId = "vn.mangatranslate.app"
         minSdk = 26          // Android 8.0
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.3.1-oauth-callback"
+        versionCode = 8
+        versionName = "0.3.2-chatgpt-multipage"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
