@@ -26,7 +26,7 @@ if [ "$booted" = "1" ]; then
   adb shell settings put global window_animation_scale 0
   adb shell settings put global transition_animation_scale 0
   adb shell settings put global animator_duration_scale 0
-  bash scripts/diag/run_on_emulator.sh > res/run.txt 2>&1
+  bash "${RUN_SCRIPT:-scripts/diag/run_on_emulator.sh}" > res/run.txt 2>&1
   for f in diag_app.txt instrument.txt logcat.txt; do [ -f "$f" ] && cp "$f" res/; done
 fi
 exit 0
