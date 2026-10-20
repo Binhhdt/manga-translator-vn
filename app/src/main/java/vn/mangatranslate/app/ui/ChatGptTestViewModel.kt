@@ -45,7 +45,8 @@ data class ChatGptTestState(
     /** Giai đoạn D: nhiều trang. */
     val batchPages: List<String> = emptyList(),
     val batchRows: List<BatchRow> = emptyList(),
-    val batchLocation: String? = null
+    val batchLocation: String? = null,
+    val batchFailed: List<String> = emptyList()
 )
 
 /** Kết quả một trang trong lượt thử nhiều trang. */
@@ -258,6 +259,9 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
         if (pages.isEmpty()) return log("Chưa chọn trang nào.")
         run("Đang dịch thử ${pages.size} trang…") {
             val app = getApplication<Application>()
+            val fgs = OAuthWaitService.start(app, "Đang dịch thử bằng ChatGPT", "${pages.size} trang — giữ kết nối khi màn hình tắt hoặc chuyển ứng dụng")
+            log(if (fgs == null) "FOREGROUND_SERVICE_REQUESTED (giữ kết nối trong lúc dịch)" else "FOREGROUND_SERVICE_FAILED $fgs")
+            try {
             val runId = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             val writer = TestRunWriter(app, runId)
             _state.update { it.copy(batchRows = pages.map { p -> BatchRow(p.second, "chờ") }, batchLocation = writer.location) }
@@ -272,7 +276,6 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
                 val (uri, name) = page
                 rows[i] = rows[i].copy(status = "đang gửi")
                 _state.update { it.copy(batchRows = rows.toList(), busy = "Trang ${i + 1}/${pages.size}: $name") }
-                val token = tokenForInference() ?: break
                 val (img, info) = try {
                     withContext(Dispatchers.Default) { encodeImage(uri) }
                 } catch (e: Exception) {
@@ -282,8 +285,8 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val t0 = System.currentTimeMillis()
                 val reply = try {
-                    withContext(Dispatchers.IO) {
-                        client.respond(token, model, ChatGptClient.MANGA_INSTRUCTIONS,
+                    sendWithRetry(name) { tok ->
+                        client.respond(tok, model, ChatGptClient.MANGA_INSTRUCTIONS,
                             "Đọc và dịch trang truyện này. Chỉ trả về JSON theo mẫu.", img)
                     }
                 } catch (e: Exception) {
@@ -330,7 +333,42 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             log("Xong lượt thử. Báo cáo: ${writer.location}/bao_cao.txt")
+            _state.update { it.copy(batchFailed = rows.filter { r -> r.status != "completed" }.map { r -> r.name }) }
+            } finally {
+                OAuthWaitService.stop(app)
+            }
         }
+    }
+
+    /**
+     * Gửi một trang; nếu MẠNG rớt (IOException: mất kết nối, hết giờ) thì thử lại tối đa 2 lần, chờ 5 s rồi 15 s.
+     * Không thử lại khi máy chủ trả lỗi hoặc báo chạm giới hạn gói.
+     */
+    private suspend fun sendWithRetry(name: String, call: (String) -> ChatGptClient.Reply): ChatGptClient.Reply {
+        val waits = listOf(5_000L, 15_000L)
+        var attempt = 0
+        while (true) {
+            val token = tokenForInference() ?: throw IllegalStateException("Thiếu quyền chatgpt.tokens.use.direct")
+            try {
+                return withContext(Dispatchers.IO) { call(token) }
+            } catch (e: java.io.IOException) {
+                if (attempt >= waits.size) throw e
+                log("Trang $name: ${e.javaClass.name}: ${e.message} — thử lại sau ${waits[attempt] / 1000} s (lần ${attempt + 2}/3)")
+                kotlinx.coroutines.delay(waits[attempt])
+                attempt++
+            }
+        }
+    }
+
+    /** Chỉ chọn lại các trang lỗi của lượt trước rồi chạy lượt mới. */
+    fun retryFailed() {
+        val failed = _state.value.batchFailed.toSet()
+        val pages = batchUris.filter { it.second in failed }
+        if (pages.isEmpty()) return log("Không có trang lỗi để dịch lại.")
+        batchUris = pages
+        _state.update { it.copy(batchPages = pages.map { p -> p.second }, batchRows = emptyList()) }
+        log("Dịch lại ${pages.size} trang lỗi: ${pages.joinToString { it.second }}")
+        runBatch()
     }
 
     private fun reportHeader(runId: String, model: String, rows: List<BatchRow>): String {

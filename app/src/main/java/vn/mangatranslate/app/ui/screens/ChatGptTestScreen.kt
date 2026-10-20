@@ -168,6 +168,9 @@ fun ChatGptTestScreen(main: MainViewModel, vm: ChatGptTestViewModel = viewModel(
                 Button(onClick = vm::runBatch, enabled = idle && s.selectedModel != null && s.batchPages.isNotEmpty() && !s.limitReached) {
                     Text("Bắt đầu dịch thử")
                 }
+                if (s.batchFailed.isNotEmpty() && s.batchRows.isNotEmpty()) {
+                    OutlinedButton(onClick = vm::retryFailed, enabled = idle && !s.limitReached) { Text("Dịch lại ${s.batchFailed.size} trang lỗi") }
+                }
                 s.batchLocation?.let { Text("Lưu tại: $it", style = MaterialTheme.typography.bodySmall) }
                 s.batchRows.forEachIndexed { i, r ->
                     Text(

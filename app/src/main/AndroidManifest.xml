@@ -38,7 +38,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Giữ máy chủ callback OAuth loopback 127.0.0.1 hoạt động trong lúc người dùng đăng nhập ChatGPT trên trình duyệt" />
+                android:value="Giữ máy chủ callback OAuth 127.0.0.1 khi người dùng đăng nhập ChatGPT trên trình duyệt, và giữ kết nối mạng khi người dùng chủ động gửi trang truyện cho ChatGPT dịch" />
         </service>
     </application>
 </manifest>

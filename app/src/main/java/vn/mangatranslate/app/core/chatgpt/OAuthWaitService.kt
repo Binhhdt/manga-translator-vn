@@ -36,8 +36,8 @@ class OAuthWaitService : Service() {
         }
         val n: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Đang chờ đăng nhập ChatGPT")
-            .setContentText("Hoàn tất đăng nhập trong trình duyệt rồi quay lại ứng dụng.")
+            .setContentTitle(intent?.getStringExtra(EXTRA_TITLE) ?: "Đang chờ đăng nhập ChatGPT")
+            .setContentText(intent?.getStringExtra(EXTRA_TEXT) ?: "Hoàn tất đăng nhập trong trình duyệt rồi quay lại ứng dụng.")
             .setOngoing(true)
             .build()
         val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
@@ -57,8 +57,16 @@ class OAuthWaitService : Service() {
         private const val NOTIF_ID = 4455
 
         /** @return null nếu thành công, hoặc mô tả lỗi (lớp + thông báo). */
-        fun start(ctx: Context): String? = try {
-            ContextCompat.startForegroundService(ctx, Intent(ctx, OAuthWaitService::class.java))
+        private const val EXTRA_TITLE = "title"
+        private const val EXTRA_TEXT = "text"
+
+        /**
+         * Cũng dùng khi đang gửi trang cho ChatGPT: tiến trình nền có thể bị đóng băng hoặc bị cắt mạng
+         * ("Software caused connection abort"); dịch vụ tiền cảnh giữ kết nối trong lúc dịch.
+         */
+        fun start(ctx: Context, title: String? = null, text: String? = null): String? = try {
+            ContextCompat.startForegroundService(ctx, Intent(ctx, OAuthWaitService::class.java)
+                .putExtra(EXTRA_TITLE, title).putExtra(EXTRA_TEXT, text))
             null
         } catch (e: Exception) {
             "${e.javaClass.name}: ${e.message}"
