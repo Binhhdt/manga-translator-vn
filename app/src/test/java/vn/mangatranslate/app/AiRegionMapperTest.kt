@@ -119,6 +119,15 @@ class AiRegionMapperTest {
     }
 
     @Test
+    fun skippedTextRestoreNeverOverwritesDrawnNeighbor() {
+        val source = BoxF(100f, 100f, 150f, 160f)
+        val drawn = BoxF(130f, 140f, 180f, 190f)
+        assertFalse(vn.mangatranslate.app.core.chatgpt.PostRenderCheck.safeToRestore(source, listOf(drawn)))
+        assertTrue(vn.mangatranslate.app.core.chatgpt.PostRenderCheck.safeToRestore(
+            source, listOf(BoxF(190f, 190f, 230f, 230f))))
+    }
+
+    @Test
     fun missingBboxOrTranslationIsSkipped() {
         val g = page()
         val ds = AiRegionMapper.map(
