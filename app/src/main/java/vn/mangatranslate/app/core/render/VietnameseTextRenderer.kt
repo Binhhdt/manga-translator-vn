@@ -261,7 +261,18 @@ class VietnameseTextRenderer {
             val b = if (style.fillBubble) FontSizing.fillBounds(imageW, area.height)
             else FontSizing.bounds(imageW, region.lineHeight, area.height)
             val first = build(text, paint, b.min, area.width, style)
-            if (!fits(first, area, text)) return null
+            if (!fits(first, area, text)) {
+                // Single-word replies like "Ừ!", "!", and short names frequently
+                // have less room than the 11 px default floor. Try a slightly
+                // smaller font ONLY for very short ChatGPT speech; still require
+                // every character and accent to fit entirely inside the mask.
+                if (style.fillBubble && text.length <= 8 && area.width >= 10f && area.height >= 12f) {
+                    val smallSize = min(9f, b.min)
+                    val small = build(text, paint, smallSize, area.width, style)
+                    if (fits(small, area, text)) return Fit(small, area, smallSize, true)
+                }
+                return null
+            }
             val top = build(text, paint, b.max, area.width, style)
             if (fits(top, area, text)) return Fit(top, area, b.max, true)
             var lo = b.min
