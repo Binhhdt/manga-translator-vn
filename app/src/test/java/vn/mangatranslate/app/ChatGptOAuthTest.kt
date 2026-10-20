@@ -92,28 +92,60 @@ class ChatGptOAuthTest {
         assertEquals(null to "line1\nline2", got[2])
     }
 
+    private fun http(port: Int, path: String): Pair<Int, String> {
+        val c = URL("http://127.0.0.1:$port$path").openConnection(java.net.Proxy.NO_PROXY) as HttpURLConnection
+        c.connectTimeout = 3000; c.readTimeout = 3000
+        return try {
+            val code = c.responseCode
+            code to ((if (code >= 400) c.errorStream else c.inputStream)?.bufferedReader()?.readText() ?: "")
+        } finally { c.disconnect() }
+    }
+
     @Test
-    fun loopbackServerReturnsCallbackParams() {
-        LoopbackServer.open(listOf(0)).use { server ->
+    fun loopbackServerBindsSelfTestsAndAnswersImmediately() {
+        val logs = java.util.Collections.synchronizedList(mutableListOf<String>())
+        LoopbackServer.open("S1", "<p>Quay lại</p>", { logs += it }, listOf(0)).use { server ->
             val port = server.port
-            val t = Thread {
-                // Một yêu cầu không liên quan trước (trình duyệt hay xin favicon) → 404, server tiếp tục chờ.
-                val f = URL("http://127.0.0.1:$port/favicon.ico").openConnection() as HttpURLConnection
-                assertEquals(404, f.responseCode); f.disconnect()
-                val c = URL("http://127.0.0.1:$port/auth/callback?code=c1&state=s1&client_id=oaiapp_1").openConnection() as HttpURLConnection
-                assertEquals(200, c.responseCode)
-                assertTrue(c.inputStream.bufferedReader().readText().contains("Quay lại"))
-                c.disconnect()
-            }
-            t.start()
-            val params = server.awaitCallback(10_000, "<p>Quay lại</p>")
-            t.join(5_000)
-            assertEquals(mapOf("code" to "c1", "state" to "s1", "client_id" to "oaiapp_1"), params)
+            assertEquals("127.0.0.1", server.boundHost)
+            assertTrue(logs.any { it.startsWith("LISTENER_BOUND 127.0.0.1:$port") })
+            assertTrue(server.selfTest() >= 0)
+            assertEquals(200, http(port, "/health").first)
+
+            // Socket "mở sẵn" không gửi gì (như Chrome preconnect) không được chặn các yêu cầu khác.
+            val idle = java.net.Socket(java.net.Proxy.NO_PROXY).apply { connect(java.net.InetSocketAddress("127.0.0.1", port), 2000) }
+            assertEquals(404, http(port, "/favicon.ico").first)
+
+            // state sai → 400, listener tiếp tục chờ.
+            val bad = http(port, "/auth/callback?code=c0&state=WRONG")
+            assertEquals(400, bad.first)
+            assertNull(server.awaitCallback(200))
+
+            // Callback đúng nhận 200 NGAY, trước khi ai gọi awaitCallback (tức trước bước đổi token).
+            val ok = http(port, "/auth/callback?code=c1&state=S1&client_id=oaiapp_1")
+            assertEquals(200, ok.first)
+            assertTrue(ok.second.contains("Quay lại"))
+            assertEquals(mapOf("code" to "c1", "state" to "S1", "client_id" to "oaiapp_1"), server.awaitCallback(1000))
+            idle.close()
+            assertTrue(logs.containsAll(listOf("STATE_VALIDATED", "HTTP_RESPONSE_SENT 200")))
+            // Nhật ký không chứa code hay state.
+            assertFalse(logs.any { it.contains("c1") || it.contains("S1") || it.contains("WRONG") })
         }
     }
 
     @Test
-    fun loopbackServerTimesOut() {
-        LoopbackServer.open(listOf(0)).use { assertNull(it.awaitCallback(300, "")) }
+    fun loopbackServerTimesOutAndCloses() {
+        val server = LoopbackServer.open(ports = listOf(0))
+        val port = server.port
+        assertNull(server.awaitCallback(300))
+        server.close()
+        assertTrue(runCatching { http(port, "/health") }.isFailure)
+    }
+
+    @Test
+    fun busyPortFallsBackToNext() {
+        val s1 = LoopbackServer.open(ports = listOf(0))
+        val s2 = LoopbackServer.open(ports = listOf(s1.port, 0))
+        assertTrue(s2.port != s1.port)
+        s2.close(); s1.close()
     }
 }

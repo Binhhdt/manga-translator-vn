@@ -19,6 +19,7 @@ import vn.mangatranslate.app.core.chatgpt.ChatGptAuth
 import vn.mangatranslate.app.core.chatgpt.ChatGptClient
 import vn.mangatranslate.app.core.chatgpt.MangaJson
 import vn.mangatranslate.app.core.chatgpt.OAuthUtil
+import vn.mangatranslate.app.core.chatgpt.OAuthWaitService
 import vn.mangatranslate.app.core.chatgpt.TokenStore
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -56,7 +57,13 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     private val time = SimpleDateFormat("HH:mm:ss", Locale.US)
 
-    private fun log(s: String) = _state.update { it.copy(log = (it.log + "${time.format(Date())}  $s").takeLast(200)) }
+    @Volatile private var server: vn.mangatranslate.app.core.chatgpt.LoopbackServer? = null
+
+    /** Nhật ký trên màn hình + logcat (thẻ MTV-OAuth). Không bao giờ chứa code, state hay token. */
+    private fun log(s: String) {
+        android.util.Log.i(OAuthWaitService.TAG, s)
+        _state.update { it.copy(log = (it.log + "${time.format(Date())}  $s").takeLast(200)) }
+    }
 
     private fun run(label: String, block: suspend () -> Unit) {
         if (_state.value.busy != null) return
@@ -65,7 +72,8 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 block()
             } catch (e: Exception) {
-                log("LỖI: ${e.javaClass.simpleName}: ${e.message}")
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                log("LỖI: ${e.javaClass.name}: ${e.message}")
             } finally {
                 _state.update { it.copy(busy = null) }
             }
@@ -73,17 +81,34 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cancel() {
+        server?.close()
         job?.cancel()
         _state.update { it.copy(busy = null) }
         log("Đã hủy thao tác.")
     }
 
     fun signIn() = run("Đang chờ đăng nhập trong trình duyệt…") {
-        val acc = withContext(Dispatchers.IO) {
-            auth.signIn(openBrowser = { url ->
-                val i = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                getApplication<Application>().startActivity(i)
-            }, log = ::log)
+        val app = getApplication<Application>()
+        val acc = try {
+            withContext(Dispatchers.IO) {
+                auth.signIn(
+                    openBrowser = { url ->
+                        val i = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        app.startActivity(i)
+                    },
+                    log = ::log,
+                    keepAlive = {
+                        // Giữ tiến trình ở tiền cảnh khi Chrome che ứng dụng (tránh bị đóng băng/chặn mạng nền).
+                        val err = OAuthWaitService.start(app)
+                        log(if (err == null) "FOREGROUND_SERVICE_REQUESTED" else "FOREGROUND_SERVICE_FAILED $err")
+                    },
+                    onServer = { server = it }
+                )
+            }
+        } finally {
+            server?.close()
+            server = null
+            OAuthWaitService.stop(app)
         }
         _state.update { it.copy(account = acc, issuedClientId = store.issuedClientId()) }
         log("Đăng nhập xong: ${acc.email.ifEmpty { "(không có email)" }}")
@@ -184,6 +209,12 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
         imageDataUrl = url
         _state.update { it.copy(imageName = name ?: uri.lastPathSegment, imageInfo = info) }
         log("Ảnh: ${name ?: uri.lastPathSegment} — $info")
+    }
+
+    override fun onCleared() {
+        server?.close()
+        OAuthWaitService.stop(getApplication())
+        super.onCleared()
     }
 
     private companion object {

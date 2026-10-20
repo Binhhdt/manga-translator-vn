@@ -26,7 +26,8 @@ probe() {  # $1 = nhãn
   adb shell su 0 cat /proc/net/tcp /proc/net/tcp6 | grep -i ":05AF" | head -20
   echo "--- HTTP từ tiến trình khác (nc, chờ tối đa 8 s):"
   local t0=$(date +%s%N)
-  adb shell "printf 'GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n' | nc -w 8 127.0.0.1 1455; echo NC_RC=\$?" 2>&1 | head -12
+  timeout 20 adb shell "printf 'GET /health HTTP/1.1\r\nHost: 127.0.0.1:1455\r\nConnection: close\r\n\r\n' | timeout 12 nc 127.0.0.1 1455; echo NC_RC=\$?" 2>&1 | head -12
+  echo "(NC_RC=124 hoặc không có dòng HTTP = kết nối được nhưng KHÔNG có phản hồi)"
   echo "thời gian: $(( ($(date +%s%N)-t0)/1000000 )) ms"
 }
 
@@ -43,6 +44,8 @@ sleep 25
 probe "30s"
 sleep 60
 probe "90s"
+sleep 90
+probe "180s"
 
 echo "===== CHROME mở http://127.0.0.1:1455/health"
 adb shell am start -a android.intent.action.VIEW -d "http://127.0.0.1:1455/health" com.android.chrome
@@ -66,5 +69,5 @@ python3 scripts/diag/ui.py tap "Nhật ký" --optional
 python3 scripts/diag/ui.py texts | head -80
 adb shell screencap -p /sdcard/app.png; adb pull /sdcard/app.png $R/ >/dev/null
 adb logcat -d -v time > $R/logcat_full.txt
-grep -E -i "MTV-OAuth|freez|mangatranslate|AndroidRuntime" $R/logcat_full.txt | head -300 > $R/logcat.txt
+grep -E -i "MTV-OAuth|freez|mangatranslate|AndroidRuntime|ForegroundService" $R/logcat_full.txt | head -300 > $R/logcat.txt
 exit 0

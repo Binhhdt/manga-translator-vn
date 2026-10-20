@@ -64,27 +64,67 @@ class ChatGptAuth(private val store: TokenStore) {
     }
 
     /**
-     * Đăng nhập. [openBrowser] mở URL bằng trình duyệt hệ thống. Hàm chặn luồng (gọi trên Dispatchers.IO).
-     * [log] nhận các bước (không bao giờ chứa token).
+     * Đăng nhập. Hàm chặn luồng (gọi trên Dispatchers.IO). Trình tự:
+     * bind 127.0.0.1 → tự kiểm tra /health → [keepAlive] (dịch vụ tiền cảnh) → kiểm tra redirect_uri khớp listener
+     * → mở trình duyệt → chờ callback. [log] không bao giờ nhận code, state hay token.
+     * [onServer] nhận listener để nơi gọi có thể đóng khi người dùng hủy.
      */
-    fun signIn(openBrowser: (String) -> Unit, log: (String) -> Unit, timeoutMs: Int = 5 * 60_000): ChatGptAccount {
+    fun signIn(
+        openBrowser: (String) -> Unit,
+        log: (String) -> Unit,
+        keepAlive: () -> Unit = {},
+        onServer: (LoopbackServer?) -> Unit = {},
+        timeoutMs: Long = 10 * 60_000L
+    ): ChatGptAccount {
         val issued = store.issuedClientId()
         val previous = store.load()
         val hostId = store.hostId()
         val disc = discovery()
         log("issuer: ${disc.issuer}")
-        LoopbackServer.open().use { server ->
-            val attempt = OAuthUtil.newAttempt(server.port)
-            log("Đang nghe callback tại ${attempt.redirectUri}")
-            log(if (issued == null) "Lần đầu: client_id=dynamic_agent_client (đăng ký mới)" else "Dùng lại client_id đã cấp: $issued")
-            val url = OAuthUtil.authorizeUrl(attempt, hostId, issued, previous?.takeIf { it.clientId == issued }?.idToken)
-            openBrowser(url)
-            val params = server.awaitCallback(timeoutMs, RETURN_PAGE)
-                ?: throw ChatGptError("Hết thời gian chờ đăng nhập (5 phút). Trình duyệt không gọi về ${attempt.redirectUri}.")
-            log("Nhận callback, tham số: ${params.keys.joinToString()}")
+        // state/nonce/verifier tạo trước để listener tự kiểm tra state; cổng thật chỉ biết sau khi bind.
+        val secrets = OAuthUtil.newAttempt(0)
+        LoopbackServer.open(expectedState = secrets.state, successHtml = RETURN_PAGE, log = log).use { server ->
+            onServer(server)
+            try {
+                val attempt = secrets.copy(redirectUri = OAuthUtil.redirectUri(server.port))
+                val ms = try {
+                    server.selfTest()
+                } catch (e: Exception) {
+                    throw ChatGptError("SELF_TEST_FAILED ${e.javaClass.name}: ${e.message}")
+                }
+                log("SELF_TEST_OK GET /health → 200 sau $ms ms")
+                keepAlive()
+                log(if (issued == null) "Lần đầu: client_id=dynamic_agent_client (đăng ký mới)" else "Dùng lại client_id đã cấp: $issued")
+                val url = OAuthUtil.authorizeUrl(attempt, hostId, issued, previous?.takeIf { it.clientId == issued }?.idToken)
+                // redirect_uri trong URL phải trùng tuyệt đối với địa chỉ listener đang nghe.
+                val sent = OAuthUtil.parseRequestLine("GET /x?${url.substringAfter('?')} HTTP/1.1")?.second?.get("redirect_uri")
+                val listening = "http://${server.boundHost}:${server.port}${OAuthUtil.CALLBACK_PATH}"
+                if (sent != listening) throw ChatGptError("REDIRECT_URI_MISMATCH: URL gửi \"$sent\" ≠ listener \"$listening\"")
+                log("REDIRECT_URI_MATCH $listening")
+                openBrowser(url)
+                log("BROWSER_OPENED")
+                val params = server.awaitCallback(timeoutMs)
+                    ?: throw ChatGptError("CALLBACK_TIMEOUT: không nhận được callback hợp lệ sau ${timeoutMs / 60_000} phút " +
+                        "(số kết nối TCP listener đã nhận: ${server.acceptedConnections}).")
+                return finishSignIn(params, attempt, issued, previous, hostId, disc, log)
+            } finally {
+                onServer(null)
+            }
+        }
+    }
 
-            // 1) state phải khớp trước mọi thứ khác.
-            if (params["state"] != attempt.state) throw ChatGptError("state không khớp — bỏ qua callback này (có thể là yêu cầu giả).")
+    private fun finishSignIn(
+        params: Map<String, String>,
+        attempt: OAuthUtil.Attempt,
+        issued: String?,
+        previous: ChatGptAccount?,
+        hostId: String,
+        disc: Discovery,
+        log: (String) -> Unit
+    ): ChatGptAccount {
+        run {
+            // 1) state đã được listener kiểm tra; kiểm tra lại để chắc chắn.
+            if (params["state"] != attempt.state) throw ChatGptError("STATE_INVALID — bỏ qua callback.")
             params["error"]?.let { err ->
                 throw ChatGptError("Đăng nhập bị từ chối: $err ${params["error_description"].orEmpty()}".trim(), code = err)
             }
@@ -114,9 +154,9 @@ class ChatGptAuth(private val store: TokenStore) {
                     "resource" to OAuthUtil.RESOURCE
                 )
             )
-            if (r.status != 200) throw tokenError("Đổi code lấy token thất bại", r)
+            if (r.status != 200) throw tokenError("TOKEN_EXCHANGE_FAILED", r)
             val tok = JSONObject(r.body)
-            log("Phản hồi token có các trường: ${tok.keys().asSequence().joinToString()}")
+            log("TOKEN_EXCHANGED (trường: ${tok.keys().asSequence().joinToString()})")
 
             // 4) Xác minh ID token.
             val idToken = tok.optString("id_token")

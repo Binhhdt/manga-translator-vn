@@ -4,6 +4,10 @@
     <!-- Tải mô hình ML Kit lần đầu; màn hình "Thử ChatGPT" (tùy chọn) gọi auth.openai.com / api.openai.com. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Chỉ trong lúc chờ trình duyệt gọi về 127.0.0.1 khi đăng nhập ChatGPT (xem OAuthWaitService). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- Chỉ Android 8.0–9 (API 26–28) cần quyền này để lưu ảnh vào Pictures/. Android 10+ dùng MediaStore, không cần quyền. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
@@ -27,5 +31,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".core.chatgpt.OAuthWaitService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Giữ máy chủ callback OAuth loopback 127.0.0.1 hoạt động trong lúc người dùng đăng nhập ChatGPT trên trình duyệt" />
+        </service>
     </application>
 </manifest>
