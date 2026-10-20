@@ -3,6 +3,7 @@ package vn.mangatranslate.app.core.chatgpt
 import vn.mangatranslate.app.core.model.BoxF
 import vn.mangatranslate.app.core.vision.BubbleDetector
 import vn.mangatranslate.app.core.vision.GrayImage
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -39,7 +40,9 @@ object AiRegionMapper {
         val lineHeight: Float,
         val bubble: BubbleDetector.Bubble?,
         /** Không còn dùng (giữ để tương thích). */
-        val coverBox: BoxF? = null
+        val coverBox: BoxF? = null,
+        /** Tỉ lệ nét chữ Nhật trong vùng KHÔNG xóa được an toàn (sẽ còn lộ sau khi chèn). */
+        val residual: Float = 0f
     )
 
     /**
@@ -86,14 +89,40 @@ object AiRegionMapper {
                         reason = d.reason + "; gộp vùng #${r.id} (cùng bong bóng)")
                     continue
                 }
-                val b = withHalo(b0, gray)
+                // Lòng trắng có "lỗ" lớn không giống chữ (tóc, tay, mảng tranh bị nền trắng bao quanh) thì KHÔNG phải
+                // bong bóng thoại → chuyển sang cách xử lý vùng hở (chỉ xóa nét chữ được chọn).
+                val tb0 = textOnly(b0, gray)
+                if (tb0 == null) {
+                    out += overlayOrSkip(r, ai, gray, s, width, height).let {
+                        if (it.action == Action.SKIP) it else it.copy(reason = "Lòng trắng chứa mảng tranh, không coi là bong bóng; " + it.reason)
+                    }
+                    continue
+                }
+                val b = withHalo(tb0, gray)
                 val holes = b.holeBounds()
                 val textBox = (holes ?: b.box).let { BoxF(it.left / s, it.top / s, it.right / s, it.bottom / s) }
-                val inner = BoxF(b.inner.left / s, b.inner.top / s, b.inner.right / s, b.inner.bottom / s)
+                // Vùng đặt chữ: lớn hơn giữa "hình chữ nhật trong" của BubbleDetector và hình chữ nhật nới từng điểm
+                // trong lòng bong bóng (cách viền ≥ 2 px) — bong bóng hẹp/xiên có thêm chỗ cho chữ Việt.
+                val grown = growInBubble(b, holes)
+                var innerG = if (grown != null && score(grown) > score(b.inner) * 1.1f) grown else b.inner
+                // Ứng viên: khối chữ Nhật (sẽ bị xóa) nếu gần như toàn bộ nằm trong lòng bong bóng.
+                if (holes != null) {
+                    var tot = 0; var inside = 0
+                    for (y in holes.top.toInt() until holes.bottom.toInt()) for (x in holes.left.toInt() until holes.right.toInt()) {
+                        tot++; if (b.isInterior(x, y)) inside++
+                    }
+                    if (tot > 0 && inside >= 0.97f * tot && score(holes) > score(innerG)) innerG = holes
+                }
+                val inner = BoxF(innerG.left / s, innerG.top / s, innerG.right / s, innerG.bottom / s)
                 val chars = r.ja.count { !it.isWhitespace() }.coerceAtLeast(1)
                 val lineHeight = sqrt(b.holeArea / (s * s) / chars * 4f).coerceIn(8f, 80f)
                 byBubble[b0.label] = out.size
-                out += Decision(listOf(r.id), r.type, r.ja, r.vi, Action.BUBBLE, why, ai, textBox, inner, lineHeight, b)
+                // Nét trong bong bóng bị loại khỏi mặt nạ xóa (không giống chữ) nhưng nằm trong khối chữ → sẽ còn lộ.
+                var all0 = 0; var kept0 = 0
+                holes?.let { hb -> for (y in hb.top.toInt() until hb.bottom.toInt()) for (x in hb.left.toInt() until hb.right.toInt()) {
+                    if (b0.isHole(x, y)) { all0++; if (tb0.isHole(x, y)) kept0++ } } }
+                val residual = if (all0 == 0) 0f else (all0 - kept0).toFloat() / all0
+                out += Decision(listOf(r.id), r.type, r.ja, r.vi, Action.BUBBLE, why, ai, textBox, inner, lineHeight, b, residual = residual)
                 continue
             }
 
@@ -191,6 +220,12 @@ object AiRegionMapper {
             }
         val seed = (1..comps).maxByOrNull { coreVotes[it] }?.takeIf { coreVotes[it] > 0 }
             ?: return skip(r, ai, "Không thấy nền sáng quanh chữ — giữ nguyên ảnh")
+        // Nền chính phải thật sự TRẮNG (không phải lưới chấm/tram): trung bình độ sáng ≥ 215.
+        run {
+            var sum = 0L; var c = 0
+            for (p in 0 until n) if (lab[p] == seed) { sum += gray[l + p % sw, t + p / sw]; c++ }
+            if (c == 0 || sum / c < 215) return skip(r, ai, "Nền quanh chữ không phải nền trắng (lưới chấm/tram) — giữ nguyên ảnh")
+        }
         val smallLimit = max(50, (0.01f * n).toInt())
         fun neutralBg(id: Int) = !inkC[id - 1] && (id == seed || (!edge[id - 1] && cnt[id - 1] <= smallLimit))
 
@@ -207,7 +242,51 @@ object AiRegionMapper {
                 if (b == seed) seedAdj[id]++ else if (!neutralBg(b)) badAdj[id]++
             }
         }
-        val eligible = (1..comps).filter { inkC[it - 1] && !edge[it - 1] && cnt[it - 1] >= 3 && seedAdj[it] > 0 && badAdj[it] <= 0.03f * (seedAdj[it] + badAdj[it]) }
+        val adjOk = (1..comps).filter { inkC[it - 1] && !edge[it - 1] && cnt[it - 1] >= 3 && seedAdj[it] > 0 && badAdj[it] <= 0.03f * (seedAdj[it] + badAdj[it]) }
+        val sizes0 = adjOk.filter { cnt[it - 1] >= 8 }.ifEmpty { adjOk }
+            .map { max(cx1[it - 1] - cx0[it - 1] + 1, cy1[it - 1] - cy0[it - 1] + 1) }.sorted()
+        // Cỡ chữ ước lượng = phân vị 75% (kanji tách thành nhiều mảnh nhỏ nên trung vị quá nhỏ; hiragana lớn như の là một nét).
+        val med = if (sizes0.isEmpty()) 0 else sizes0[(sizes0.size * 3) / 4]
+        // Lưới chấm (screentone): nhiều cụm tí hon đứng dày đặc. Cụm tí hon có ≥ 4 cụm tí hon khác trong bán kính 6 px
+        // là chấm tram, KHÔNG phải chữ (dấu chấm câu/dakuten thì đứng lẻ).
+        val tiny = (1..comps).filter { inkC[it - 1] && max(cx1[it - 1] - cx0[it - 1] + 1, cy1[it - 1] - cy0[it - 1] + 1) <= 5 }
+        val tinyCenters = tiny.map { (cx0[it - 1] + cx1[it - 1]) / 2 to (cy0[it - 1] + cy1[it - 1]) / 2 }
+        val screentone = HashSet<Int>()
+        for ((k, id) in tiny.withIndex()) {
+            val (x, y) = tinyCenters[k]
+            var near = 0
+            for ((x2, y2) in tinyCenters) if (abs(x2 - x) <= 6 && abs(y2 - y) <= 6) near++
+            if (near - 1 >= 4) screentone += id
+        }
+        val adjSet = adjOk.toHashSet()
+        // Vòng cách nét 2 px: phải phần lớn là nền trắng (≥ 215) hoặc nét của CHỮ bên cạnh; điểm xám trung bình
+        // (lưới chấm/tram) và nét lạ làm giảm tỉ lệ → nét vẽ trên nền tram bị loại.
+        fun ringLight(id: Int): Float {
+            val x0 = cx0[id - 1] - 2; val y0 = cy0[id - 1] - 2; val x1 = cx1[id - 1] + 2; val y1 = cy1[id - 1] + 2
+            var tot = 0; var li = 0
+            fun smp(x: Int, y: Int) {
+                if (x !in 0 until sw || y !in 0 until sh) return
+                tot++
+                val p = y * sw + x
+                val v = gray[l + x, t + y]
+                if (v >= 215 || (isInk[p] && lab[p] in adjSet && lab[p] !in screentone)) li++
+            }
+            for (x in x0..x1) { smp(x, y0); smp(x, y1) }
+            for (y in y0..y1) { smp(x0, y); smp(x1, y) }
+            return li.toFloat() / max(1, tot)
+        }
+        var thinLong = 0
+        val eligible = adjOk.filter { id ->
+            if (id in screentone) return@filter false
+            val cw = cx1[id - 1] - cx0[id - 1] + 1
+            val ch = cy1[id - 1] - cy0[id - 1] + 1
+            val fill = cnt[id - 1].toFloat() / (cw * ch)
+            // Nét DÀI và MẢNH/CONG (viền bong bóng, tia khung nổ, đường tốc độ) không phải chữ.
+            // Gạch "ー" thẳng có độ đặc của khung cao nên vẫn được giữ.
+            val curvy = max(cw, ch) > 2.5f * max(med, 4) && fill < 0.35f
+            if (curvy) thinLong++
+            !curvy && ringLight(id) >= 0.75f
+        }
         if (eligible.isEmpty()) return skip(r, ai, "Không tách được nét chữ khỏi hình vẽ trong vùng AI — giữ nguyên ảnh")
 
         // Gom cụm chữ quanh lõi.
@@ -234,7 +313,9 @@ object AiRegionMapper {
                 if (!inkC[id - 1] || id in chosen || edge[id - 1]) continue
                 val bx = cbox(id)
                 val md = max(bx.width, bx.height)
-                if (md <= 1.5f * charSize && bx.left >= block.left && bx.right <= block.right && bx.top >= block.top && bx.bottom <= block.bottom) chosen += id
+                val fillA = cnt[id - 1].toFloat() / max(1f, bx.area)
+                if (id in screentone || md > 1.5f * charSize || (md > charSize && fillA < 0.35f) || ringLight(id) < 0.6f) continue
+                if (bx.left >= block.left && bx.right <= block.right && bx.top >= block.top && bx.bottom <= block.bottom) chosen += id
             }
         }
         // Nét mực LỚN không phải chữ (viền bong bóng, nét vẽ: dài hơn 1.5 cỡ chữ hoặc chạm mép cửa sổ).
@@ -266,18 +347,24 @@ object AiRegionMapper {
         // Phải xóa TRỌN chữ trong vùng AI; sót nhiều → chữ Nhật lộ ra cạnh chữ Việt → bỏ qua.
         val inAiInk = eligible.filter { aiWin.contains(cbox(it).centerX, cbox(it).centerY) }.sumOf { cnt[it - 1] }
         val missed = eligible.filter { it !in chosen && aiWin.contains(cbox(it).centerX, cbox(it).centerY) }.sumOf { cnt[it - 1] }
-        if (missed > 0.15f * max(1, inAiInk)) return skip(r, ai, "Không tách trọn chữ trong vùng (sót ${pct(missed / max(1f, inAiInk.toFloat()))}%, có nét dính viền/hình vẽ) — giữ nguyên ảnh")
+        if (missed > 0.2f * max(1, inAiInk)) return skip(r, ai, "Không tách trọn chữ trong vùng (sót ${pct(missed / max(1f, inAiInk.toFloat()))}%, có nét dính viền/hình vẽ) — giữ nguyên ảnh")
         val dropped = (1..comps).count { inkC[it - 1] } - chosen.size
         val inkBoxW = cluster
         val inkRatio = keptInk / max(1f, inkBoxW.area)
         if (inkRatio > 0.45f) return skip(r, ai, "Vùng dày mực (${pct(inkRatio)}%) — có thể là hình vẽ, giữ nguyên ảnh")
 
+        // Nét giống chữ nằm TRONG khối chữ nhưng không được xóa (không tính mảnh sát viền ở rìa) → sẽ còn lộ.
+        val blockInk = chosen.sumOf { cnt[it - 1] }
+        val leftInBlock = eligible.filter { it !in chosen && it !in nearForeign && inkBoxW.contains(cbox(it).centerX, cbox(it).centerY) }.sumOf { cnt[it - 1] }
+        val residualInBlock = leftInBlock.toFloat() / max(1, blockInk + leftInBlock)
         // Mặt nạ trên vùng mở rộng E (cửa sổ + khoảng bằng kích thước vùng AI mỗi phía, để chữ Việt có chỗ):
         // - "lòng" = trong cửa sổ: nền chính + lòng nhỏ + nét chữ đã chọn; ngoài cửa sổ: chỉ điểm trắng tinh (≥ 230).
         // - "nét cần xóa" = nét chữ đã chọn + quầng xám khử răng cưa quanh nét (≤ 3 px, thuộc lòng, < 245) → không còn bóng.
         // Bộ vẽ chỉ tô điểm thuộc lòng → viền bong bóng và nét vẽ không bao giờ bị đụng.
-        val extra = max(sw, sh)
-        val el = max(0, l - extra); val et = max(0, t - extra); val er = min(gw, rr + extra); val eb = min(gh, bb + extra)
+        // Chỉ nới ra ngoài cửa sổ theo CHIỀU NGANG (chữ Việt ngang cần bề rộng); không nới xuống/lên để chữ
+        // không tràn khỏi bong bóng hở xuống tranh bên dưới.
+        val extra = (max(sw, sh) * 0.6f).toInt()
+        val el = max(0, l - extra); val et = t; val er = min(gw, rr + extra); val eb = bb
         val ew = er - el; val eh = eb - et
         val interior = BooleanArray(ew * eh)
         val holes = BooleanArray(ew * eh)
@@ -345,6 +432,20 @@ object AiRegionMapper {
             if (yy in 0 until eh && interior[yy * ew + xx]) { start = yy * ew + xx; candidates += growFrom(true); candidates += growFrom(false) }
         }
         start = startSaved
+        // Ứng viên: chính khối chữ Nhật (sẽ được xóa) nếu mực còn lại bên trong (không xóa) không đáng kể (< 5%).
+        run {
+            var rest = 0; var all = 0
+            for (y in inkBoxW.top.toInt() until inkBoxW.bottom.toInt()) for (x in inkBoxW.left.toInt() until inkBoxW.right.toInt()) {
+                val p = y * sw + x
+                if (!isInk[p]) continue
+                all++
+                if (lab[p] !in chosen) rest++
+            }
+            if (all > 0 && rest <= 0.05f * all) {
+                val ib = BoxF(inkBoxW.left + l - el, inkBoxW.top + t - et, inkBoxW.right + l - el, inkBoxW.bottom + t - et)
+                candidates += ib
+            }
+        }
         // Điểm: diện tích dùng được cho chữ ngang = rộng × min(cao, rộng).
         val best = candidates.maxByOrNull { it.width * min(it.height, it.width) }!!
         val lx = best.left.toInt(); val ty = best.top.toInt(); val rx = best.right.toInt(); val by = best.bottom.toInt()
@@ -361,9 +462,10 @@ object AiRegionMapper {
         )
         return Decision(listOf(r.id), r.type, r.ja, r.vi, Action.OPEN,
             "Không có bong bóng khép kín; tách ${chosen.size} cụm nét chữ (bỏ $dropped cụm viền/hình vẽ" +
+                (if (thinLong > 0) ", $thinLong nét dài/cong" else "") +
                 (if (nearForeign.isNotEmpty()) ", ${nearForeign.size} cụm sát viền" else "") +
                 ") → chỉ xóa đúng các nét chữ này, không phủ khung",
-            ai, origW(inkBoxW), origE(layoutE), lineHeight, shape)
+            ai, origW(inkBoxW), origE(layoutE), lineHeight, shape, residual = residualInBlock)
     }
 
     private fun skip(r: MangaJson.Region, ai: BoxF, why: String) =
@@ -390,6 +492,50 @@ object AiRegionMapper {
         return out
     }
 
+    /**
+     * Chỉ giữ "lỗ" giống chữ trong bong bóng: cụm nét cỡ ký tự, không dài/cong, không phải chấm tram.
+     * @return null nếu bong bóng chứa mảng mực lớn không phải chữ (≥ 2.5 cỡ chữ và đặc, hoặc diện tích lớn).
+     */
+    private fun textOnly(b: BubbleDetector.Bubble, gray: GrayImage): BubbleDetector.Bubble? {
+        val bw = b.width; val bh = b.height
+        val lab = IntArray(bw * bh)
+        val q = IntArray(bw * bh)
+        data class C(val x0: Int, val y0: Int, val x1: Int, val y1: Int, val n: Int) { val md get() = max(x1 - x0 + 1, y1 - y0 + 1) }
+        val comps = ArrayList<C>()
+        for (st in 0 until bw * bh) {
+            if (lab[st] != 0 || !b.isHole(b.left + st % bw, b.top + st / bw)) continue
+            val id = comps.size + 1
+            var hd = 0; var tl = 0; q[tl++] = st; lab[st] = id
+            var x0 = bw; var y0 = bh; var x1 = -1; var y1 = -1; var n = 0
+            while (hd < tl) {
+                val p = q[hd++]; val x = p % bw; val y = p / bw; n++
+                if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y
+                for (nb in intArrayOf(if (x > 0) p - 1 else -1, if (x < bw - 1) p + 1 else -1, if (y > 0) p - bw else -1, if (y < bh - 1) p + bw else -1)) {
+                    if (nb >= 0 && lab[nb] == 0 && b.isHole(b.left + nb % bw, b.top + nb / bw)) { lab[nb] = id; q[tl++] = nb }
+                }
+            }
+            comps += C(x0, y0, x1, y1, n)
+        }
+        if (comps.isEmpty()) return null
+        val sizes = comps.filter { it.n >= 8 }.ifEmpty { comps }.map { it.md }.sorted()
+        val med = max(4, sizes[(sizes.size * 3) / 4])
+        val keep = BooleanArray(comps.size + 1)
+        var bigInk = false
+        for ((i, c) in comps.withIndex()) {
+            val fill = c.n.toFloat() / ((c.x1 - c.x0 + 1) * (c.y1 - c.y0 + 1))
+            val curvy = c.md > 3f * med && fill < 0.35f
+            val massive = c.md > 3f * med && fill >= 0.35f && c.n > 3f * med * med * 0.35f
+            if (massive) bigInk = true
+            keep[i + 1] = !curvy && !massive
+        }
+        if (bigInk) return null
+        val interior = BooleanArray(bw * bh) { val x = b.left + it % bw; val y = b.top + it / bw
+            b.isInterior(x, y) && (lab[it] == 0 || keep[lab[it]]) }
+        val holes = BooleanArray(bw * bh) { lab[it] != 0 && keep[lab[it]] }
+        return BubbleDetector.Bubble(b.label, b.left, b.top, b.right, b.bottom, interior, holes,
+            interior.count { it }, holes.count { it }, b.inner)
+    }
+
     /** Bản sao bong bóng thật với "nét cần xóa" gồm cả quầng xám quanh nét (lòng bong bóng giữ nguyên). */
     private fun withHalo(b: BubbleDetector.Bubble, gray: GrayImage): BubbleDetector.Bubble {
         val bw = b.width; val bh = b.height
@@ -397,6 +543,47 @@ object AiRegionMapper {
         val holes = BooleanArray(bw * bh) { b.isHole(b.left + it % bw, b.top + it / bw) }
         val halo = haloHoles(holes, interior, bw, bh) { x, y -> gray[b.left + x, b.top + y] }
         return BubbleDetector.Bubble(b.label, b.left, b.top, b.right, b.bottom, interior, halo, b.interiorArea, halo.count { it }, b.inner)
+    }
+
+    /** Điểm cho vùng đặt chữ Việt ngang: rộng × min(cao, rộng). */
+    private fun score(b: BoxF) = b.width * min(b.height, b.width)
+
+    /** Hình chữ nhật lớn nhất (tìm tham lam từ vài điểm xuất phát) nằm trọn trong lòng bong bóng, cách viền ≥ 2 px. */
+    private fun growInBubble(b: BubbleDetector.Bubble, textBox: BoxF?): BoxF? {
+        fun ok(x: Int, y: Int): Boolean {
+            for (dy in -2..2) for (dx in -2..2) if (!b.isInterior(x + dx, y + dy)) return false
+            return true
+        }
+        fun allOk(x0: Int, y0: Int, x1: Int, y1: Int): Boolean {
+            for (y in y0 until y1) for (x in x0 until x1) if (!ok(x, y)) return false
+            return true
+        }
+        val c = textBox ?: b.box
+        val starts = listOf(c.centerX to c.centerY, c.centerX to (c.top + c.height * 0.3f), c.centerX to (c.top + c.height * 0.7f),
+            b.box.centerX to b.box.centerY)
+        var best: BoxF? = null
+        for ((sx, sy) in starts) {
+            val x = sx.toInt(); val y = sy.toInt()
+            if (!ok(x, y)) continue
+            for (horizontalFirst in listOf(false, true)) {
+                var lx = x; var ty = y; var rx = x + 1; var by = y + 1
+                if (horizontalFirst) {
+                    var g = true
+                    while (g) { g = false
+                        if (allOk(lx - 1, ty, lx, by)) { lx--; g = true }
+                        if (allOk(rx, ty, rx + 1, by)) { rx++; g = true } }
+                }
+                var g = true
+                while (g) { g = false
+                    if (allOk(lx - 1, ty, lx, by)) { lx--; g = true }
+                    if (allOk(rx, ty, rx + 1, by)) { rx++; g = true }
+                    if (allOk(lx, ty - 1, rx, ty)) { ty--; g = true }
+                    if (allOk(lx, by, rx, by + 1)) { by++; g = true } }
+                val r = BoxF(lx.toFloat(), ty.toFloat(), rx.toFloat(), by.toFloat())
+                if (best == null || score(r) > score(best!!)) best = r
+            }
+        }
+        return best
     }
 
     /** Nhãn âm cho "bong bóng" tổng hợp của vùng hở (không trùng nhãn bong bóng thật). */

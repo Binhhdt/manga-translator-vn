@@ -99,4 +99,34 @@ class AiRegionMapperTest {
         )
         assertTrue(ds.all { it.action == AiRegionMapper.Action.SKIP })
     }
+
+    @Test
+    fun whiteAreaContainingArtworkMassIsNotTreatedAsBubbleAndMassIsNeverErased() {
+        val g = GrayImage.blank(w, h)
+        // Khung kín lớn (như một ô tranh trắng) chứa "chữ" và một mảng mực lớn (như mái tóc).
+        for (x in 60..180) { g[x, 40] = 0; g[x, 41] = 0; g[x, 160] = 0; g[x, 161] = 0 }
+        for (y in 40..161) { g[60, y] = 0; g[61, y] = 0; g[180, y] = 0; g[181, y] = 0 }
+        for (y in 120..150) for (x in 70..110) g[x, y] = 0              // mảng mực lớn
+        for (row in 0..3) glyph(g, 140, 55 + row * 12, row % 2 == 0)     // chữ
+        val ds = AiRegionMapper.map(listOf(region("1", "dialogue", 132.0, 50.0, 30.0, 56.0)), w, h, g, 1f, BubbleDetector().detect(g))
+        val d = ds.single()
+        if (d.action != AiRegionMapper.Action.SKIP) {
+            val b = d.bubble!!
+            for (y in 120..150) for (x in 70..110) assertFalse("mảng mực bị đánh dấu xóa tại $x,$y", b.isHole(x, y))
+        }
+    }
+
+    @Test
+    fun safetyNetDetectsErasedLongStroke() {
+        val ww = 200; val hh = 200
+        val orig = IntArray(ww * hh) { 255 }
+        for (x in 20..180) orig[100 * ww + x] = 0                          // một nét dài (viền)
+        for (y in 90..96) for (x in 95..101) orig[y * ww + x] = 0          // một "chữ" nhỏ
+        val outOk = orig.copyOf(); for (y in 90..96) for (x in 95..101) outOk[y * ww + x] = 255
+        val outBad = outOk.copyOf(); for (x in 20..180) outBad[100 * ww + x] = 255
+        val d = AiRegionMapper.Decision(listOf("1"), "dialogue", "あ", "a", AiRegionMapper.Action.OPEN, "",
+            BoxF(90f, 85f, 110f, 105f), BoxF(95f, 90f, 102f, 97f), BoxF(80f, 80f, 120f, 110f), 10f, null)
+        assertEquals(null, vn.mangatranslate.app.core.chatgpt.PostRenderCheck.damage(ww, hh, orig, outOk, d))
+        assertNotNull(vn.mangatranslate.app.core.chatgpt.PostRenderCheck.damage(ww, hh, orig, outBad, d))
+    }
 }

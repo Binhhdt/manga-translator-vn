@@ -121,7 +121,9 @@ class VietnameseTextRenderer {
         if (shape != null) {
             cover = intersect(r.box.expand(pad).union(shape.inner), shape.box)?.clampTo(w, h) ?: return
             area = shape.inner
-            limit = intersect(shape.inner.expand(shape.inner.width * 0.08f, shape.inner.height * 0.08f), shape.box) ?: shape.inner
+            // Vùng hở (bong bóng tổng hợp, nhãn âm): vùng đặt chữ đã kiểm tra từng điểm → không nới thêm.
+            limit = if (shape.mask.label < 0) shape.inner
+            else intersect(shape.inner.expand(shape.inner.width * 0.08f, shape.inner.height * 0.08f), shape.box) ?: shape.inner
         } else if (r.coverBox != null) {
             // Vùng phủ đã kiểm tra trước (không đè nét vẽ) ∪ khoảng trắng đặt chữ.
             cover = r.coverBox.union(r.layoutBox ?: r.coverBox).clampTo(w, h)
@@ -144,7 +146,10 @@ class VietnameseTextRenderer {
             if (allowedBox != null) {
                 val rect = toRect(allowedBox)
                 val mask = countMask(shape, rect)
-                val problem = RenderSafety.maskProblem(mask.toLong(), rect.area, w.toLong() * h.toLong())
+                // Vùng hở: mặt nạ đã là đúng các nét chữ được chọn (không phải cả khung) → cho phép khung xóa tới 15% trang;
+                // kiểm tra mật độ mực (≤ 55% khung) vẫn giữ nguyên.
+                val pageLimit = if (shape.mask.label < 0) 0.15f else 0.06f
+                val problem = RenderSafety.maskProblem(mask.toLong(), rect.area, w.toLong() * h.toLong(), pageLimit)
                 val bg = sampleBubbleBackground(c.original, shape)
                 when {
                     problem != null -> c.maskRejected[r.id] = problem
@@ -168,6 +173,12 @@ class VietnameseTextRenderer {
             background = if (alpha > 0) blend(bg, overlayColor, alpha / 255f) else bg
         }
 
+        // Vùng hở: không xóa được từng nét an toàn → giữ nguyên ảnh (KHÔNG phủ kín cả khung — tránh mảng xám/xóa nét vẽ).
+        if (shape != null && shape.mask.label < 0 && cleanRect == null) {
+            if (!c.maskRejected.containsKey(r.id)) c.maskRejected[r.id] = "Vùng hở: không xóa được nét chữ an toàn"
+            c.overflow += r.id
+            return
+        }
         val fit = fit(text, r, area, limit, c.textPaint, c.style, w)
         if (!fit.fits) {
             // Không đủ chỗ: giữ nguyên ảnh gốc, đánh dấu để người dùng rút ngắn câu.

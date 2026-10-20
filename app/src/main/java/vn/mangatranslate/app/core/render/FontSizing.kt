@@ -25,10 +25,10 @@ object FontSizing {
 
     /**
      * Chế độ "lấp đầy bong bóng" (render bản dịch ChatGPT): không bám cỡ chữ Nhật gốc, chọn cỡ lớn nhất còn vừa
-     * vùng đặt chữ, trần 5% bề rộng trang (tránh chữ to quá khổ), sàn 1.4% bề rộng trang (tối thiểu 12 px).
+     * vùng đặt chữ, trần 5% bề rộng trang (tránh chữ to quá khổ), sàn 1.2% bề rộng trang (tối thiểu 11 px).
      */
     fun fillBounds(imageWidth: Float, areaHeight: Float): Bounds {
-        val minSize = max(12f, imageWidth * 0.014f)
+        val minSize = max(11f, imageWidth * 0.012f)
         val maxSize = max(minSize, min(imageWidth * 0.05f, areaHeight * 0.6f))
         return Bounds(minSize, maxSize)
     }

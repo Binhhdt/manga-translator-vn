@@ -274,15 +274,42 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
             val base = page.name.substringBeforeLast('.')
             val saved = withContext(Dispatchers.IO) { out.write("${base}_vi.png", png, "image/png", replace = p.outImageUri) }
             val verified = withContext(Dispatchers.IO) { out.verifyImage(saved, w, h) }
+            // Ảnh DEBUG đánh số vùng (xanh lá đã chèn, đỏ B, cam C, tím A, xanh dương D) + ảnh cắt vùng nghi thiếu bản dịch.
+            var debugUri: String? = p.outDebugUri
+            result.debug?.let { dbg ->
+                val bytes = withContext(Dispatchers.Default) { ByteArrayOutputStream().also { dbg.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray() }
+                dbg.recycle()
+                debugUri = runCatching { withContext(Dispatchers.IO) { out.write("${base}_debug.png", bytes, "image/png", sub = "debug", replace = p.outDebugUri) } }
+                    .onFailure { log("${page.name}: không lưu được ảnh DEBUG: ${it.message}") }.getOrNull() ?: p.outDebugUri
+            }
+            val missingItems = result.checks.filter { it.cat == vn.mangatranslate.app.core.chatgpt.PostRenderCheck.Cat.A }
+            val missingBoxes = missingItems.map { listOf(it.box.left.toInt(), it.box.top.toInt(), it.box.right.toInt(), it.box.bottom.toInt()) }
+            if (missingItems.isNotEmpty()) {
+                val src = ImageLoader(app).loadFull(uri).bitmap
+                for (it in missingItems) runCatching {
+                    val l = it.box.left.toInt().coerceIn(0, src.width - 1); val t = it.box.top.toInt().coerceIn(0, src.height - 1)
+                    val cw = (it.box.width.toInt()).coerceIn(1, src.width - l); val ch = (it.box.height.toInt()).coerceIn(1, src.height - t)
+                    val crop = Bitmap.createBitmap(src, l, t, cw, ch)
+                    val b = ByteArrayOutputStream().also { o -> crop.compress(Bitmap.CompressFormat.PNG, 100, o) }.toByteArray()
+                    crop.recycle()
+                    withContext(Dispatchers.IO) { out.write("${base}_thieu_${it.num}.png", b, "image/png", sub = "debug") }
+                }
+                src.recycle()
+            }
+            val issues = result.checks.filter { it.cat != vn.mangatranslate.app.core.chatgpt.PostRenderCheck.Cat.OK }.map {
+                "[${it.num}] ${it.cat.code} ${it.cat.label}${if (it.ids.isNotEmpty()) " (vùng AI #${it.ids.joinToString("+")})" else ""}: ${it.reason} " +
+                    "@(${it.box.left.toInt()},${it.box.top.toInt()} ${it.box.width.toInt()}×${it.box.height.toInt()})"
+            }
             val reasons = parseReasons(result.log)
             val secs = (System.currentTimeMillis() - t0) / 1000.0
-            log("${page.name}: XONG — ${parsed.regions.size} vùng AI, render ${result.drawn}, còn chữ Nhật ${result.japaneseLeft}, " +
-                "cố ý giữ ${result.keptOnPurpose}; ảnh đã lưu: $verified")
+            log("${page.name}: XONG — ${result.summary}; ảnh đã lưu: $verified")
             if (result.changedOutside > 0) log("${page.name}: CẢNH BÁO ${result.changedOutside} điểm ảnh đổi ngoài vùng cho phép")
             p.copy(
                 status = PageStatus.DONE, error = null, aiRegions = parsed.regions.size, rendered = result.drawn,
                 japaneseLeft = result.japaneseLeft, keptOnPurpose = result.keptOnPurpose, reasons = reasons,
-                seconds = secs, verified = verified, outImageUri = saved
+                seconds = secs, verified = verified, outImageUri = saved,
+                okCount = result.okCount, notInserted = result.notInserted, suspectedJp = result.suspectedJapanese,
+                missing = result.missingTranslation, missingBoxes = missingBoxes, issues = issues, outDebugUri = debugUri
             )
         } catch (e: OutOfMemoryError) {
             fail(p, "Hết bộ nhớ khi render (ảnh quá lớn)", t0)
@@ -313,15 +340,23 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
     private fun writeReport(run: AutoRun, out: AutoOutput): AutoRun {
         val sb = StringBuilder()
         sb.append("Manga Translator VN — dịch tự động bằng ChatGPT\nLượt: ${run.id}  Mô hình: ${run.model}\n")
-        sb.append("Xong ${run.done} · Lỗi ${run.failed} · Chưa xử lý ${run.pending} / ${run.pages.size} trang\n")
+        val clean = run.pages.count { it.status == PageStatus.DONE && it.needsReview == 0 }
+        val review = run.pages.count { it.status == PageStatus.DONE && it.needsReview > 0 }
+        sb.append("Hoàn chỉnh ${clean} · Xong nhưng còn vùng cần xử lý ${review} · Lỗi ${run.failed} · Chưa xử lý ${run.pending} / ${run.pages.size} trang\n")
+        sb.append("Chú thích: B = có bản dịch nhưng chưa chèn (không tìm được bong bóng/không an toàn/không đủ chỗ) · " +
+            "C = nghi còn chữ Nhật · A = nghi thiếu bản dịch (không có trong JSON, cần xác nhận) · D = cố ý giữ (sfx/AI chưa chắc)\n" +
+            "Số thứ tự [n] khớp ảnh debug/<trang>_debug.png.\n")
         if (run.stoppedForLimit) sb.append("ĐANG DỪNG do chạm giới hạn sử dụng của gói ChatGPT (tiến độ đã lưu).\n")
         val tk = run.pages.mapNotNull { it.tokens }.sum()
         sb.append("Token máy chủ báo: $tk (chỉ tham khảo)\n")
         for (p in run.pages) {
             sb.append("\n${p.index}. ${p.name} — ${p.status.label}")
             if (p.status == PageStatus.DONE) {
-                sb.append("\n   Vùng AI dịch: ${p.aiRegions} · đã render: ${p.rendered} · còn chữ Nhật: ${p.japaneseLeft} · cố ý giữ nguyên (sfx/AI chưa chắc): ${p.keptOnPurpose}")
-                p.reasons.forEach { (k, v) -> sb.append("\n   - $k: $v") }
+                sb.append("\n   Vùng trong JSON: ${p.aiRegions} · đã chèn: ${p.okCount} · có bản dịch nhưng chưa chèn (B): ${p.notInserted} · " +
+                    "nghi còn chữ Nhật (C): ${p.suspectedJp} · nghi thiếu bản dịch (A): ${p.missing} · cố ý giữ (D): ${p.keptOnPurpose} · " +
+                    "CẦN KIỂM TRA THỦ CÔNG: ${p.needsReview}")
+                if (p.needsReview == 0) sb.append("\n   → Trang hoàn chỉnh.") else sb.append("\n   → CHƯA hoàn chỉnh.")
+                p.issues.forEach { sb.append("\n   $it") }
                 sb.append("\n   Ảnh đã lưu: ${p.verified}")
             }
             p.error?.let { sb.append("\n   Lỗi: $it") }
@@ -339,9 +374,82 @@ class AutoTranslateViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Xem ảnh đã lưu (đọc lại từ tệp, bản thu nhỏ). */
-    fun showPreview(page: AutoPage) {
-        val u = page.outImageUri ?: return
+    /**
+     * Dịch BỔ SUNG chỉ các vùng nghi thiếu bản dịch (A) của một trang — CHỈ khi người dùng bấm. Gửi ảnh cắt từng vùng,
+     * không gửi lại cả trang. Kết quả được thêm vào JSON đã lưu (đánh dấu "supplement") rồi render lại trang từ JSON.
+     */
+    fun supplementMissing(page: AutoPage) {
+        val s0 = _state.value
+        if (s0.running || page.missingBoxes.isEmpty()) return
+        if (s0.limitReached) return log("Đang chạm giới hạn sử dụng — không gửi yêu cầu mới.")
+        val model = s0.model ?: return log("Chưa chọn mô hình.")
+        val run0 = s0.run ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(running = true, current = "Dịch bổ sung ${page.missingBoxes.size} vùng của ${page.name}") }
+            val app = getApplication<Application>()
+            try {
+                val json = store.loadJson(run0.id, page.index) ?: return@launch log("${page.name}: chưa có JSON đã lưu.")
+                val root = JSONObject(json)
+                val arr = root.getJSONArray("regions")
+                val src = ImageLoader(app).loadFull(Uri.parse(page.uri)).bitmap
+                val W = src.width.toDouble(); val H = src.height.toDouble()
+                var added = 0
+                for ((k, bx) in page.missingBoxes.withIndex()) {
+                    val mx = ((bx[2] - bx[0]) * 0.1).toInt(); val my = ((bx[3] - bx[1]) * 0.1).toInt()
+                    val l = (bx[0] - mx).coerceIn(0, src.width - 1); val t = (bx[1] - my).coerceIn(0, src.height - 1)
+                    val r = (bx[2] + mx).coerceIn(l + 1, src.width); val b = (bx[3] + my).coerceIn(t + 1, src.height)
+                    val crop = Bitmap.createBitmap(src, l, t, r - l, b - t)
+                    val bos = ByteArrayOutputStream(); crop.compress(Bitmap.CompressFormat.JPEG, 90, bos); crop.recycle()
+                    val img = "data:image/jpeg;base64," + java.util.Base64.getEncoder().encodeToString(bos.toByteArray())
+                    val acc = withContext(Dispatchers.IO) { auth.validAccessToken(::log) }
+                    if (!OAuthUtil.hasPlanScope(acc.scopes)) { log("Thiếu quyền chatgpt.tokens.use.direct"); break }
+                    var reply: ChatGptClient.Reply? = null
+                    for (attempt in 0..2) {
+                        try {
+                            reply = withContext(Dispatchers.IO) {
+                                client.respond(acc.accessToken, model, ChatGptClient.MANGA_INSTRUCTIONS,
+                                    "Đây là MỘT VÙNG NHỎ cắt từ trang truyện. Chỉ đọc và dịch chữ trong ảnh này; nếu không có lời thoại thì trả về {\"regions\":[]}.", img)
+                            }
+                            break
+                        } catch (e: java.io.IOException) {
+                            if (attempt == 2) throw e
+                            delay(if (attempt == 0) 5_000L else 15_000L)
+                        }
+                    }
+                    val rep = reply ?: break
+                    if (rep.limitReached) { _state.update { it.copy(limitReached = true) }; log("Chạm giới hạn sử dụng khi dịch bổ sung."); break }
+                    if (!rep.ok) { log("${page.name}: vùng bổ sung ${k + 1} không hoàn tất (${rep.status})"); continue }
+                    val parsed = MangaJson.parse(rep.text)
+                    for (reg in parsed.regions) {
+                        val bb = reg.bbox ?: continue
+                        val o = JSONObject().put("id", "S${k + 1}_${reg.id}").put("type", reg.type).put("ja", reg.ja).put("vi", reg.vi)
+                            .put("uncertain", reg.uncertain).put("supplement", true)
+                            .put("bbox", org.json.JSONArray().put((l + bb[0] * (r - l)) / W).put((t + bb[1] * (b - t)) / H)
+                                .put(bb[2] * (r - l) / W).put(bb[3] * (b - t) / H))
+                        arr.put(o); added++
+                    }
+                    log("${page.name}: vùng bổ sung ${k + 1}: ${parsed.regions.size} vùng chữ")
+                }
+                src.recycle()
+                if (added > 0) {
+                    store.saveJson(run0.id, page.index, root.toString())
+                    val nr = run0.copy(pages = run0.pages.map { if (it.index == page.index) it.copy(status = PageStatus.PENDING, error = null) else it })
+                    store.save(nr)
+                    _state.update { it.copy(run = nr) }
+                    log("${page.name}: thêm $added vùng vào JSON (đã lưu cache). Bấm \"Tiếp tục\" để render lại trang — không tốn thêm hạn mức.")
+                } else log("${page.name}: không có vùng chữ mới nào được thêm.")
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                log("Dịch bổ sung lỗi: ${e.javaClass.name}: ${e.message}")
+            } finally {
+                _state.update { it.copy(running = false, current = null) }
+            }
+        }
+    }
+
+    /** Xem ảnh đã lưu (đọc lại từ tệp, bản thu nhỏ). [debug] = xem ảnh DEBUG đánh số vùng. */
+    fun showPreview(page: AutoPage, debug: Boolean = false) {
+        val u = (if (debug) page.outDebugUri else page.outImageUri) ?: return
         viewModelScope.launch {
             val bmp = withContext(Dispatchers.IO) {
                 runCatching {

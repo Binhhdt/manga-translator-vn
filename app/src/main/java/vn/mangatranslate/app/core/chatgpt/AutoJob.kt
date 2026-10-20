@@ -38,14 +38,30 @@ data class AutoPage(
     val retries: Int = 0,
     val verified: String? = null,
     val outImageUri: String? = null,
-    val outJsonUri: String? = null
+    val outJsonUri: String? = null,
+    /** Kiểm tra sau render: đã chèn / B có bản dịch nhưng chưa chèn / C nghi còn chữ Nhật / A nghi thiếu bản dịch. */
+    val okCount: Int = 0,
+    val notInserted: Int = 0,
+    val suspectedJp: Int = 0,
+    val missing: Int = 0,
+    /** Khung (px ảnh gốc: trái, trên, phải, dưới) các vùng nghi thiếu bản dịch — để dịch bổ sung riêng. */
+    val missingBoxes: List<List<Int>> = emptyList(),
+    /** Danh sách vùng cần xử lý (số thứ tự khớp ảnh DEBUG). */
+    val issues: List<String> = emptyList(),
+    val outDebugUri: String? = null
 ) {
+    /** Số vùng cần xử lý / kiểm tra thủ công. */
+    val needsReview: Int get() = notInserted + suspectedJp + missing
+
     fun toJson(): JSONObject = JSONObject().put("index", index).put("uri", uri).put("name", name)
         .put("status", status.name).put("error", error).put("jsonCached", jsonCached)
         .put("aiRegions", aiRegions).put("rendered", rendered).put("japaneseLeft", japaneseLeft)
         .put("keptOnPurpose", keptOnPurpose).put("reasons", JSONObject(reasons as Map<*, *>))
         .put("tokens", tokens).put("seconds", seconds).put("retries", retries).put("verified", verified)
         .put("outImageUri", outImageUri).put("outJsonUri", outJsonUri)
+        .put("okCount", okCount).put("notInserted", notInserted).put("suspectedJp", suspectedJp).put("missing", missing)
+        .put("missingBoxes", JSONArray().apply { missingBoxes.forEach { b -> put(JSONArray(b)) } })
+        .put("issues", JSONArray(issues)).put("outDebugUri", outDebugUri)
 
     companion object {
         fun fromJson(j: JSONObject): AutoPage {
@@ -61,7 +77,11 @@ data class AutoPage(
                 j.optDouble("seconds", 0.0), j.optInt("retries"),
                 if (j.isNull("verified")) null else j.optString("verified"),
                 if (j.isNull("outImageUri")) null else j.optString("outImageUri"),
-                if (j.isNull("outJsonUri")) null else j.optString("outJsonUri")
+                if (j.isNull("outJsonUri")) null else j.optString("outJsonUri"),
+                j.optInt("okCount"), j.optInt("notInserted"), j.optInt("suspectedJp"), j.optInt("missing"),
+                j.optJSONArray("missingBoxes")?.let { a -> (0 until a.length()).map { i -> a.getJSONArray(i).let { b -> (0 until b.length()).map { k -> b.getInt(k) } } } } ?: emptyList(),
+                j.optJSONArray("issues")?.let { a -> (0 until a.length()).map { a.getString(it) } } ?: emptyList(),
+                if (j.isNull("outDebugUri")) null else j.optString("outDebugUri")
             )
         }
     }

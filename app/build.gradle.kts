@@ -12,8 +12,8 @@ android {
         applicationId = "vn.mangatranslate.app"
         minSdk = 26          // Android 8.0
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.5.0-auto-translate"
+        versionCode = 13
+        versionName = "0.6.0-postcheck"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

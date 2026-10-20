@@ -32,8 +32,21 @@ class AiPageRenderer {
         /** Vùng cố ý giữ nguyên (sfx, AI đánh dấu cần kiểm tra). */
         val keptOnPurpose: Int,
         /** Tóm tắt một dòng cho màn hình. */
-        val summary: String
-    )
+        val summary: String,
+        /** Kết quả kiểm tra sau render (A/B/C/D/OK) từng vùng. */
+        val checks: List<PostRenderCheck.Item> = emptyList(),
+        /** Ảnh DEBUG: bản sao ảnh đã chèn, khoanh và đánh số các vùng theo loại. */
+        val debug: Bitmap? = null
+    ) {
+        private fun n(c: PostRenderCheck.Cat) = checks.count { it.cat == c }
+        val okCount get() = n(PostRenderCheck.Cat.OK)
+        val notInserted get() = n(PostRenderCheck.Cat.B)
+        val suspectedJapanese get() = n(PostRenderCheck.Cat.C)
+        val missingTranslation get() = n(PostRenderCheck.Cat.A)
+        val kept get() = n(PostRenderCheck.Cat.D)
+        /** Số vùng cần xử lý / kiểm tra thủ công (B + C + A). */
+        val needsReview get() = notInserted + suspectedJapanese + missingTranslation
+    }
 
     fun render(original: Bitmap, regions: List<MangaJson.Region>): Result {
         val w = original.width
@@ -42,7 +55,8 @@ class AiPageRenderer {
         val scaled = BitmapGray.fromBitmap(original, GRAY_MAX_PIXELS)
         val s = scaled.scale
         val bubbles = BubbleDetector().detect(scaled.image)
-        val decisions = AiRegionMapper.map(regions, w, h, scaled.image, s, bubbles)
+        var decisions = AiRegionMapper.map(regions, w, h, scaled.image, s, bubbles)
+        val og = BitmapGray.fromBitmap(original).image.pixels
 
         // Mỗi quyết định không bỏ qua → một TextRegion (id = số thứ tự trong danh sách quyết định + 1).
         val textRegions = ArrayList<TextRegion>()
@@ -66,7 +80,24 @@ class AiPageRenderer {
             overlayOpacity = 100,
             fillBubble = true
         )
-        val out = VietnameseTextRenderer().render(original, textRegions, style)
+        var out = VietnameseTextRenderer().render(original, textRegions, style)
+
+        // LƯỚI AN TOÀN: vùng nào lỡ xóa nét vẽ/viền → render lại KHÔNG có vùng đó (giữ nguyên ảnh gốc ở đó).
+        for (pass in 0 until 2) {
+            val outGray = BitmapGray.fromBitmap(out.bitmap).image.pixels
+            val bad = HashMap<Int, String>()
+            decisions.forEachIndexed { i, d ->
+                if (d.action == AiRegionMapper.Action.SKIP) return@forEachIndexed
+                PostRenderCheck.damage(w, h, og, outGray, d)?.let { bad[i] = it }
+            }
+            if (bad.isEmpty()) break
+            decisions = decisions.mapIndexed { i, d ->
+                bad[i]?.let { why -> d.copy(action = AiRegionMapper.Action.SKIP, reason = "Bỏ qua để bảo vệ tranh: $why") } ?: d
+            }
+            out.bitmap.recycle()
+            out = VietnameseTextRenderer().render(original, textRegions.filter { tr -> bad[tr.id - 1] == null }, style)
+            textRegions.removeAll { tr -> bad[tr.id - 1] != null }
+        }
 
         val log = StringBuilder()
         log.append("Render thử ChatGPT → ảnh gốc ${w}×$h (ảnh gốc không bị sửa; vẽ trên bản sao)\n")
@@ -120,8 +151,67 @@ class AiPageRenderer {
             }
         )
         log.append("Thời gian: ${System.currentTimeMillis() - t0} ms\n")
-        val summary = "Đã render $drawn · còn chữ Nhật $japaneseLeft · cố ý giữ $keptOnPurpose · điểm ảnh đổi ngoài vùng cho phép: $changed"
-        return Result(out.bitmap, log.toString(), drawn, skipped, changed, japaneseLeft, keptOnPurpose, summary)
+
+        // ---- Kiểm tra sau render: so ảnh gốc / ảnh ra, đối chiếu JSON.
+        val drawnIds = HashSet<Int>()
+        val notDrawn = HashMap<Int, String>()
+        decisions.forEachIndexed { i, d ->
+            val id = i + 1
+            if (d.action == AiRegionMapper.Action.SKIP) return@forEachIndexed
+            when {
+                id in out.failedIds -> notDrawn[id] = "Lỗi khi vẽ"
+                id in out.overflowIds -> notDrawn[id] = out.maskRejected[id] ?: "Không đủ chỗ cho bản dịch"
+                else -> drawnIds += id
+            }
+        }
+        val ogOut = BitmapGray.fromBitmap(out.bitmap).image.pixels
+        val checks = PostRenderCheck.check(w, h, og, ogOut, regions, decisions, drawnIds, notDrawn, bubbles, s)
+        val debug = drawDebug(out.bitmap, checks)
+        val cnt = PostRenderCheck.counts(checks)
+        val report = StringBuilder()
+        report.append("KIỂM TRA SAU RENDER: vùng trong JSON ${regions.size} · đã chèn ${cnt[PostRenderCheck.Cat.OK]} · " +
+            "có bản dịch nhưng chưa chèn ${cnt[PostRenderCheck.Cat.B]} · nghi còn chữ Nhật ${cnt[PostRenderCheck.Cat.C]} · " +
+            "không có trong JSON ${cnt[PostRenderCheck.Cat.A]} · cố ý giữ ${cnt[PostRenderCheck.Cat.D]}\n")
+        for (it in checks) if (it.cat != PostRenderCheck.Cat.OK) {
+            report.append("  [${it.num}] ${it.cat.code} ${it.cat.label}${if (it.ids.isNotEmpty()) " (vùng AI #${it.ids.joinToString("+")})" else ""}: ${it.reason} @ ${fmt(it.box)}\n")
+        }
+        log.insert(0, report.toString() + "\n")
+        val needs = (cnt[PostRenderCheck.Cat.B] ?: 0) + (cnt[PostRenderCheck.Cat.C] ?: 0) + (cnt[PostRenderCheck.Cat.A] ?: 0)
+        val summary = "Đã chèn ${cnt[PostRenderCheck.Cat.OK]} · cần xử lý $needs (B ${cnt[PostRenderCheck.Cat.B]}, C ${cnt[PostRenderCheck.Cat.C]}, A ${cnt[PostRenderCheck.Cat.A]}) · " +
+            "cố ý giữ ${cnt[PostRenderCheck.Cat.D]} · điểm ảnh đổi ngoài vùng cho phép: $changed"
+        return Result(out.bitmap, log.toString(), drawn, skipped, changed, japaneseLeft, keptOnPurpose, summary, checks, debug)
+    }
+
+    /** Ảnh DEBUG: xanh lá = đã chèn, đỏ = B, cam = C, tím = A, xanh dương = D; số thứ tự khớp báo cáo. */
+    private fun drawDebug(src: Bitmap, checks: List<PostRenderCheck.Item>): Bitmap? = try {
+        val bmp = src.copy(Bitmap.Config.ARGB_8888, true)
+        val c = android.graphics.Canvas(bmp)
+        val stroke = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE; strokeWidth = maxOf(2f, bmp.width / 300f)
+        }
+        val text = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = maxOf(14f, bmp.width / 45f); isFakeBoldText = true
+        }
+        val bg = android.graphics.Paint().apply { color = 0xCCFFFFFF.toInt() }
+        for (it in checks) {
+            val col = when (it.cat) {
+                PostRenderCheck.Cat.OK -> 0xFF00A000.toInt()
+                PostRenderCheck.Cat.B -> 0xFFE00000.toInt()
+                PostRenderCheck.Cat.C -> 0xFFFF8C00.toInt()
+                PostRenderCheck.Cat.A -> 0xFFC000C0.toInt()
+                PostRenderCheck.Cat.D -> 0xFF0060FF.toInt()
+            }
+            stroke.color = col; text.color = col
+            val r = android.graphics.RectF(it.box.left, it.box.top, it.box.right, it.box.bottom)
+            c.drawRect(r, stroke)
+            val label = "${it.num}${if (it.cat == PostRenderCheck.Cat.OK) "" else it.cat.code}"
+            val tw = text.measureText(label)
+            c.drawRect(r.left, r.top - text.textSize, r.left + tw + 4, r.top, bg)
+            c.drawText(label, r.left + 2, r.top - 3, text)
+        }
+        bmp
+    } catch (e: OutOfMemoryError) {
+        null
     }
 
     private fun gray2orig(b: BoxF, s: Float) = BoxF(b.left / s, b.top / s, b.right / s, b.bottom / s)

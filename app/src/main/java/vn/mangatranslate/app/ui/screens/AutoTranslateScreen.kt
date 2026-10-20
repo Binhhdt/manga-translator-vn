@@ -120,7 +120,8 @@ fun AutoTranslateScreen(main: MainViewModel, vm: AutoTranslateViewModel = viewMo
             if (run != null) {
                 val total = run.pages.size.coerceAtLeast(1)
                 LinearProgressIndicator(progress = { (run.done + run.failed).toFloat() / total }, modifier = Modifier.fillMaxWidth())
-                Text("Hoàn thành ${run.done} · Thất bại ${run.failed} · Chưa xử lý ${run.pending} / ${run.pages.size}", fontWeight = FontWeight.Bold)
+                val needPages = run.pages.count { it.status == PageStatus.DONE && it.needsReview > 0 }
+                Text("Hoàn thành ${run.done} (hoàn chỉnh ${run.done - needPages}, còn vùng cần xử lý $needPages) · Thất bại ${run.failed} · Chưa xử lý ${run.pending} / ${run.pages.size}", fontWeight = FontWeight.Bold)
                 s.current?.let { Text("Đang xử lý: $it", style = MaterialTheme.typography.bodySmall) }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (s.running) {
@@ -164,14 +165,21 @@ fun AutoTranslateScreen(main: MainViewModel, vm: AutoTranslateViewModel = viewMo
                 HorizontalDivider()
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${p.index}. ${p.name} — ${p.status.label}", Modifier.weight(1f), fontWeight = FontWeight.Bold,
-                            color = if (p.status == PageStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+                        val label = if (p.status == PageStatus.DONE && p.needsReview > 0) "xong — còn ${p.needsReview} vùng cần xử lý" else p.status.label
+                        Text("${p.index}. ${p.name} — $label", Modifier.weight(1f), fontWeight = FontWeight.Bold,
+                            color = if (p.status == PageStatus.FAILED || (p.status == PageStatus.DONE && p.needsReview > 0)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
                         if (p.status == PageStatus.DONE && p.outImageUri != null) TextButton(onClick = { vm.showPreview(p) }) { Text("Xem") }
+                        if (p.status == PageStatus.DONE && p.outDebugUri != null) TextButton(onClick = { vm.showPreview(p, debug = true) }) { Text("DEBUG") }
                     }
                     if (p.status == PageStatus.DONE) {
-                        Text("Vùng AI ${p.aiRegions} · đã render ${p.rendered} · còn chữ Nhật ${p.japaneseLeft} · cố ý giữ ${p.keptOnPurpose}",
-                            style = MaterialTheme.typography.bodySmall)
-                        p.reasons.forEach { (k, v) -> Text("  - $k: $v", style = MaterialTheme.typography.bodySmall) }
+                        Text("JSON ${p.aiRegions} · đã chèn ${p.okCount} · chưa chèn (B) ${p.notInserted} · nghi còn chữ Nhật (C) ${p.suspectedJp} · " +
+                            "nghi thiếu bản dịch (A) ${p.missing} · cố ý giữ (D) ${p.keptOnPurpose}", style = MaterialTheme.typography.bodySmall)
+                        p.issues.forEach { Text("  $it", style = MaterialTheme.typography.bodySmall) }
+                        if (p.missingBoxes.isNotEmpty() && !s.running) {
+                            TextButton(onClick = { vm.supplementMissing(p) }, enabled = s.planOk && !s.limitReached) {
+                                Text("Dịch bổ sung ${p.missingBoxes.size} vùng nghi thiếu (gọi ChatGPT cho riêng các vùng này)")
+                            }
+                        }
                         p.verified?.let { Text("Ảnh đã kiểm tra: $it", style = MaterialTheme.typography.bodySmall) }
                     }
                     p.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
