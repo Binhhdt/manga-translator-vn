@@ -99,6 +99,8 @@ class LoopbackServer private constructor(
                     else -> respond(c, 404, "text/plain; charset=utf-8", "not found")
                 }
             }
+        } catch (e: java.net.SocketTimeoutException) {
+            // Kết nối Chrome mở sẵn nhưng không gửi yêu cầu — bình thường, không ghi nhật ký.
         } catch (e: Exception) {
             if (!closed.get()) log("CONNECTION_ERROR ${e.javaClass.name}: ${e.message}")
         }
