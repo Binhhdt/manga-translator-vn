@@ -20,7 +20,8 @@ import kotlin.math.sqrt
  */
 object AiRegionMapper {
 
-    enum class Action { BUBBLE, OVERLAY, SKIP }
+    /** BUBBLE: bong bóng khép kín. OPEN: chữ ở vùng hở (bong bóng hở, nền trắng) — xóa đúng nét chữ. SKIP: giữ nguyên ảnh. */
+    enum class Action { BUBBLE, OPEN, SKIP }
 
     /**
      * Quyết định cho một vùng. Tọa độ theo ẢNH GỐC (px). [bubble] dùng tọa độ ảnh xám (nhân [grayScale]).
@@ -37,7 +38,7 @@ object AiRegionMapper {
         val layoutBox: BoxF?,
         val lineHeight: Float,
         val bubble: BubbleDetector.Bubble?,
-        /** Vùng phủ nền sáng chính xác (đã kiểm tra không đè nét vẽ), chỉ cho OVERLAY. */
+        /** Không còn dùng (giữ để tương thích). */
         val coverBox: BoxF? = null
     )
 
@@ -76,8 +77,8 @@ object AiRegionMapper {
             val aiGray = BoxF(ai.left * s, ai.top * s, ai.right * s, ai.bottom * s)
             val match = bestBubble(aiGray, bubbles)
             if (match != null) {
-                val (b, why) = match
-                val prev = byBubble[b.label]
+                val (b0, why) = match
+                val prev = byBubble[b0.label]
                 if (prev != null) {
                     // Hai câu AI cùng một bong bóng → gộp, vẽ một lần.
                     val d = out[prev]
@@ -85,12 +86,13 @@ object AiRegionMapper {
                         reason = d.reason + "; gộp vùng #${r.id} (cùng bong bóng)")
                     continue
                 }
+                val b = withHalo(b0, gray)
                 val holes = b.holeBounds()
                 val textBox = (holes ?: b.box).let { BoxF(it.left / s, it.top / s, it.right / s, it.bottom / s) }
                 val inner = BoxF(b.inner.left / s, b.inner.top / s, b.inner.right / s, b.inner.bottom / s)
                 val chars = r.ja.count { !it.isWhitespace() }.coerceAtLeast(1)
                 val lineHeight = sqrt(b.holeArea / (s * s) / chars * 4f).coerceIn(8f, 80f)
-                byBubble[b.label] = out.size
+                byBubble[b0.label] = out.size
                 out += Decision(listOf(r.id), r.type, r.ja, r.vi, Action.BUBBLE, why, ai, textBox, inner, lineHeight, b)
                 continue
             }
@@ -225,57 +227,178 @@ object AiRegionMapper {
                 chosen += id; cluster = cluster.union(cbox(id)); changed = true
             }
         }
+        // Mảnh mực nhỏ nằm TRỌN trong khối chữ (furigana, dấu câu, nét rời) cũng là chữ.
+        run {
+            val block = cluster
+            for (id in 1..comps) {
+                if (!inkC[id - 1] || id in chosen || edge[id - 1]) continue
+                val bx = cbox(id)
+                val md = max(bx.width, bx.height)
+                if (md <= 1.5f * charSize && bx.left >= block.left && bx.right <= block.right && bx.top >= block.top && bx.bottom <= block.bottom) chosen += id
+            }
+        }
+        // Nét mực LỚN không phải chữ (viền bong bóng, nét vẽ: dài hơn 1.5 cỡ chữ hoặc chạm mép cửa sổ).
+        fun bigForeign(id: Int): Boolean {
+            if (!inkC[id - 1] || id in chosen) return false
+            if (edge[id - 1]) return true
+            val bx = cbox(id)
+            return max(bx.width, bx.height) > 1.5f * charSize
+        }
+        // Cụm chữ sát (≤ 2 px) một nét lớn như vậy → không xóa (có thể là mảnh viền).
+        val nearForeign = HashSet<Int>()
+        for (id in chosen) {
+            loop@ for (y in max(0, cy0[id - 1] - 2)..min(sh - 1, cy1[id - 1] + 2))
+                for (x in max(0, cx0[id - 1] - 2)..min(sw - 1, cx1[id - 1] + 2)) {
+                    val q = y * sw + x
+                    if (!isInk[q] || lab[q] == id || !bigForeign(lab[q])) continue
+                    // điểm q là mực lạ; có điểm nào của cụm id cách q ≤ 2 px?
+                    var hit = false
+                    for (yy in max(0, y - 2)..min(sh - 1, y + 2)) for (xx in max(0, x - 2)..min(sw - 1, x + 2))
+                        if (lab[yy * sw + xx] == id) hit = true
+                    if (hit) { nearForeign += id; break@loop }
+                }
+        }
+        chosen.removeAll(nearForeign)
+        if (chosen.isEmpty()) return skip(r, ai, "Nét chữ dính sát viền/hình vẽ — giữ nguyên ảnh")
+        cluster = BoxF.unionOf(chosen.map { cbox(it) })
+
         val keptInk = chosen.sumOf { cnt[it - 1] }
-        // Phải phủ TRỌN chữ trong vùng AI; sót nhiều → chữ Nhật lộ ra cạnh chữ Việt → bỏ qua.
+        // Phải xóa TRỌN chữ trong vùng AI; sót nhiều → chữ Nhật lộ ra cạnh chữ Việt → bỏ qua.
         val inAiInk = eligible.filter { aiWin.contains(cbox(it).centerX, cbox(it).centerY) }.sumOf { cnt[it - 1] }
         val missed = eligible.filter { it !in chosen && aiWin.contains(cbox(it).centerX, cbox(it).centerY) }.sumOf { cnt[it - 1] }
-        if (missed > 0.15f * max(1, inAiInk)) return skip(r, ai, "Không gom trọn chữ trong vùng (sót ${pct(missed / max(1f, inAiInk.toFloat()))}%) — giữ nguyên ảnh")
+        if (missed > 0.15f * max(1, inAiInk)) return skip(r, ai, "Không tách trọn chữ trong vùng (sót ${pct(missed / max(1f, inAiInk.toFloat()))}%, có nét dính viền/hình vẽ) — giữ nguyên ảnh")
         val dropped = (1..comps).count { inkC[it - 1] } - chosen.size
-        val inkBox = BoxF(cluster.left + l, cluster.top + t, cluster.right + l, cluster.bottom + t)
-        val inkRatio = keptInk / max(1f, inkBox.area)
+        val inkBoxW = cluster
+        val inkRatio = keptInk / max(1f, inkBoxW.area)
         if (inkRatio > 0.45f) return skip(r, ai, "Vùng dày mực (${pct(inkRatio)}%) — có thể là hình vẽ, giữ nguyên ảnh")
 
+        // Mặt nạ trên vùng mở rộng E (cửa sổ + khoảng bằng kích thước vùng AI mỗi phía, để chữ Việt có chỗ):
+        // - "lòng" = trong cửa sổ: nền chính + lòng nhỏ + nét chữ đã chọn; ngoài cửa sổ: chỉ điểm trắng tinh (≥ 230).
+        // - "nét cần xóa" = nét chữ đã chọn + quầng xám khử răng cưa quanh nét (≤ 3 px, thuộc lòng, < 245) → không còn bóng.
+        // Bộ vẽ chỉ tô điểm thuộc lòng → viền bong bóng và nét vẽ không bao giờ bị đụng.
+        val extra = max(sw, sh)
+        val el = max(0, l - extra); val et = max(0, t - extra); val er = min(gw, rr + extra); val eb = min(gh, bb + extra)
+        val ew = er - el; val eh = eb - et
+        val interior = BooleanArray(ew * eh)
+        val holes = BooleanArray(ew * eh)
+        for (y in et until eb) for (x in el until er) {
+            val e = (y - et) * ew + (x - el)
+            if (x in l until rr && y in t until bb) {
+                val p = (y - t) * sw + (x - l)
+                val id = lab[p]
+                val text = isInk[p] && id in chosen
+                val insideBlock = !isInk[p] && inkBoxW.contains((x - l).toFloat() + 0.5f, (y - t).toFloat() + 0.5f)
+                if (text || (!isInk[p] && (neutralBg(id) || insideBlock))) interior[e] = true
+                if (text) holes[e] = true
+            } else if (gray[x, y] >= 230) interior[e] = true
+        }
+        val halo = haloHoles(holes, interior, ew, eh) { x, y -> gray[el + x, et + y] }
+        var interiorArea = 0
+        var holeArea = 0
+        for (i in interior.indices) { if (interior[i]) interiorArea++; if (halo[i]) holeArea++ }
+        fun allInterior(x0: Int, y0: Int, x1: Int, y1: Int): Boolean {
+            for (y in max(0, y0) until min(eh, y1)) for (x in max(0, x0) until min(ew, x1)) if (!interior[y * ew + x]) return false
+            return true
+        }
+        // Vùng đặt chữ: từ một điểm "lòng" gần tâm khung chữ, nới đều 4 cạnh khi dải mới hoàn toàn thuộc lòng.
+        val cxw = (inkBoxW.centerX.toInt() + l - el).coerceIn(0, ew - 1)
+        val cyw = (inkBoxW.centerY.toInt() + t - et).coerceIn(0, eh - 1)
+        var start = -1
+        run search@{
+            for (rad in 0..(charSize * 2).toInt()) {
+                for (y in max(0, cyw - rad)..min(eh - 1, cyw + rad)) for (x in max(0, cxw - rad)..min(ew - 1, cxw + rad)) {
+                    if (interior[y * ew + x]) { start = y * ew + x; return@search }
+                }
+            }
+        }
+        if (start < 0) return skip(r, ai, "Không tìm được khoảng trống an toàn để đặt chữ — giữ nguyên ảnh")
+        // Hai cách nới: đều 4 cạnh, hoặc ưu tiên chiều ngang trước (bong bóng xiên/hẹp) → chọn vùng hợp chữ Việt ngang hơn.
+        fun growFrom(horizontalFirst: Boolean): BoxF {
+            var lx = start % ew; var ty = start / ew; var rx = lx + 1; var by = ty + 1
+            if (horizontalFirst) {
+                var g = true
+                while (g) {
+                    g = false
+                    if (lx > 0 && allInterior(lx - 1, ty, lx, by)) { lx--; g = true }
+                    if (rx < ew && allInterior(rx, ty, rx + 1, by)) { rx++; g = true }
+                }
+                // Giữ một dải đủ cao cho 2 dòng chữ trước khi nới ngang tiếp.
+            }
+            var grew = true
+            while (grew) {
+                grew = false
+                if (lx > 0 && allInterior(lx - 1, ty, lx, by)) { lx--; grew = true }
+                if (rx < ew && allInterior(rx, ty, rx + 1, by)) { rx++; grew = true }
+                if (ty > 0 && allInterior(lx, ty - 1, rx, ty)) { ty--; grew = true }
+                if (by < eh && allInterior(lx, by, rx, by + 1)) { by++; grew = true }
+            }
+            return BoxF(lx.toFloat(), ty.toFloat(), rx.toFloat(), by.toFloat())
+        }
+        // Cũng thử bắt đầu từ các hàng khác của khối chữ (bong bóng xiên rộng nhất ở một độ cao nào đó).
+        val candidates = ArrayList<BoxF>()
+        candidates += growFrom(false)
+        candidates += growFrom(true)
+        val startSaved = start
+        for (frac in floatArrayOf(0.25f, 0.75f)) {
+            val yy = (inkBoxW.top + inkBoxW.height * frac).toInt() + t - et
+            val xx = cxw
+            if (yy in 0 until eh && interior[yy * ew + xx]) { start = yy * ew + xx; candidates += growFrom(true); candidates += growFrom(false) }
+        }
+        start = startSaved
+        // Điểm: diện tích dùng được cho chữ ngang = rộng × min(cao, rộng).
+        val best = candidates.maxByOrNull { it.width * min(it.height, it.width) }!!
+        val lx = best.left.toInt(); val ty = best.top.toInt(); val rx = best.right.toInt(); val by = best.bottom.toInt()
+        // Chừa 1 px với viền.
+        val layoutE = BoxF(lx.toFloat(), ty.toFloat(), rx.toFloat(), by.toFloat()).let { if (it.width > 4 && it.height > 4) it.expand(-1f) else it }
         val chars = r.ja.count { !it.isWhitespace() }.coerceAtLeast(1)
-        val lineHeight = sqrt(inkBox.area / (s * s) / chars).coerceIn(8f, 80f)
-        val margin = (lineHeight * 0.25f).coerceIn(3f, 14f)
-        val cover = inkBox.expand(margin * s + 1f)
-        val cl = cover.left.toInt(); val ct = cover.top.toInt(); val cr = cover.right.toInt(); val cb = cover.bottom.toInt()
-        var foreign = 0; var area = 0
-        for (y in ct until cb) for (x in cl until cr) {
-            if (x !in 0 until gw || y !in 0 until gh) continue
-            area++
-            val inWin = x in l until rr && y in t until bb
-            if (!inWin) { if (gray[x, y] < 200) foreign++; continue }
-            val id = lab[(y - t) * sw + (x - l)]
-            val ok = if (inkC[id - 1]) id in chosen else neutralBg(id)
-            if (!ok) foreign++
-        }
-        val foreignRatio = foreign.toFloat() / max(1, area)
-        if (foreignRatio > 0.005f) return skip(r, ai, "Vùng phủ sẽ đè lên nét vẽ/viền (${pct(foreignRatio)}% điểm lạ) — giữ nguyên ảnh")
-        var light = 0; var total = 0
-        fun sample(x: Int, y: Int) {
-            if (x !in 0 until gw || y !in 0 until gh) return
-            total++
-            if (gray[x, y] >= 200) light++
-        }
-        for (x in cl - 1..cr) { sample(x, ct - 1); sample(x, cb) }
-        for (y in ct - 1..cb) { sample(cl - 1, y); sample(cr, y) }
-        val lightRatio = light.toFloat() / max(1, total)
-        if (lightRatio < 0.7f) return skip(r, ai, "Nền quanh chữ không đủ sáng (${pct(lightRatio)}%) — giữ nguyên ảnh")
-        if (cover.area / (gw.toFloat() * gh) > 0.03f) return skip(r, ai, "Vùng phủ quá lớn — giữ nguyên ảnh")
-
-        // Vùng đặt chữ: nới sang khoảng trắng tuyệt đối (để chữ Việt ngang có chỗ khi chữ Nhật là cột dọc hẹp).
-        val grow = max(cover.width, cover.height)
-        val layout = vn.mangatranslate.app.core.vision.WhiteSpaceExpander.expand(gray, cover, 0f, grow, 200, 0.985f)
-        fun orig(b: BoxF) = BoxF(b.left / s, b.top / s, b.right / s, b.bottom / s).clampTo(w.toFloat(), h.toFloat())
-        return Decision(listOf(r.id), r.type, r.ja, r.vi, Action.OVERLAY,
-            "Không có bong bóng khép kín; giữ ${chosen.size} cụm nét chữ, bỏ $dropped cụm (viền/hình vẽ); " +
-                "điểm lạ ${pct(foreignRatio)}%, viền sáng ${pct(lightRatio)}% → phủ nền sáng bám theo nét chữ",
-            ai, orig(inkBox), orig(layout), lineHeight, null, orig(cover))
+        val lineHeight = sqrt(inkBoxW.area / (s * s) / chars).coerceIn(8f, 80f)
+        fun origW(b: BoxF) = BoxF((b.left + l) / s, (b.top + t) / s, (b.right + l) / s, (b.bottom + t) / s).clampTo(w.toFloat(), h.toFloat())
+        fun origE(b: BoxF) = BoxF((b.left + el) / s, (b.top + et) / s, (b.right + el) / s, (b.bottom + et) / s).clampTo(w.toFloat(), h.toFloat())
+        val shape = BubbleDetector.Bubble(
+            label = OPEN_LABEL_BASE - r.id.hashCode().and(0xFFFF), left = el, top = et, right = er, bottom = eb,
+            interior = interior, holes = halo, interiorArea = interiorArea, holeArea = holeArea,
+            inner = BoxF(layoutE.left + el, layoutE.top + et, layoutE.right + el, layoutE.bottom + et)
+        )
+        return Decision(listOf(r.id), r.type, r.ja, r.vi, Action.OPEN,
+            "Không có bong bóng khép kín; tách ${chosen.size} cụm nét chữ (bỏ $dropped cụm viền/hình vẽ" +
+                (if (nearForeign.isNotEmpty()) ", ${nearForeign.size} cụm sát viền" else "") +
+                ") → chỉ xóa đúng các nét chữ này, không phủ khung",
+            ai, origW(inkBoxW), origE(layoutE), lineHeight, shape)
     }
 
     private fun skip(r: MangaJson.Region, ai: BoxF, why: String) =
         Decision(listOf(r.id), r.type, r.ja, r.vi, Action.SKIP, why, ai, null, null, 0f, null)
 
     private fun pct(f: Float) = (f * 100).toInt()
+
+    /**
+     * Thêm vào "nét cần xóa" quầng xám khử răng cưa quanh nét chữ: điểm thuộc lòng, cách nét ≤ 3 px, độ sáng < 245.
+     * Nếu không, sau khi xóa lõi nét vẫn còn "bóng" xám của chữ Nhật.
+     */
+    private fun haloHoles(holes: BooleanArray, interior: BooleanArray, bw: Int, bh: Int, grayAt: (Int, Int) -> Int): BooleanArray {
+        val out = holes.copyOf()
+        for (y in 0 until bh) for (x in 0 until bw) {
+            val i = y * bw + x
+            if (holes[i] || !interior[i] || grayAt(x, y) >= 245) continue
+            var near = false
+            for (dy in -3..3) for (dx in -3..3) {
+                val xx = x + dx; val yy = y + dy
+                if (xx in 0 until bw && yy in 0 until bh && holes[yy * bw + xx]) near = true
+            }
+            if (near) out[i] = true
+        }
+        return out
+    }
+
+    /** Bản sao bong bóng thật với "nét cần xóa" gồm cả quầng xám quanh nét (lòng bong bóng giữ nguyên). */
+    private fun withHalo(b: BubbleDetector.Bubble, gray: GrayImage): BubbleDetector.Bubble {
+        val bw = b.width; val bh = b.height
+        val interior = BooleanArray(bw * bh) { b.isInterior(b.left + it % bw, b.top + it / bw) }
+        val holes = BooleanArray(bw * bh) { b.isHole(b.left + it % bw, b.top + it / bw) }
+        val halo = haloHoles(holes, interior, bw, bh) { x, y -> gray[b.left + x, b.top + y] }
+        return BubbleDetector.Bubble(b.label, b.left, b.top, b.right, b.bottom, interior, halo, b.interiorArea, halo.count { it }, b.inner)
+    }
+
+    /** Nhãn âm cho "bong bóng" tổng hợp của vùng hở (không trùng nhãn bong bóng thật). */
+    private const val OPEN_LABEL_BASE = -1
 }

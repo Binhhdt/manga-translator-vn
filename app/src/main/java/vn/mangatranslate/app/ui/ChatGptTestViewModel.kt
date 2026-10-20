@@ -447,7 +447,7 @@ class ChatGptTestViewModel(app: Application) : AndroidViewModel(app) {
             if (preview !== bmp) bmp.recycle()
             loaded.bitmap.recycle()
             _state.update { it.copy(renderPreview = preview, renderLog = result.log, renderLocation = writer.location) }
-            log("Render xong: vẽ ${result.drawn} vùng, giữ nguyên ${result.skipped} vùng; điểm ảnh đổi ngoài vùng cho phép: ${result.changedOutside}. Lưu tại ${writer.location}")
+            log("Render xong (không gọi ChatGPT): ${result.summary}. Lưu tại ${writer.location}")
         }
     }
 

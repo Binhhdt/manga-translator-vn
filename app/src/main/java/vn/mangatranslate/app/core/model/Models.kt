@@ -101,5 +101,7 @@ data class RenderStyle(
     /** Không vẽ bản dịch đáng ngờ (cần kiểm tra) lên ảnh cho tới khi người dùng xác nhận. */
     val hideUnverified: Boolean = true,
     /** Chế độ DEBUG: tô đỏ mask xóa chữ, viền xanh vùng đặt chữ thay vì xóa thật. */
-    val debugMask: Boolean = false
+    val debugMask: Boolean = false,
+    /** Chọn cỡ chữ lớn nhất vừa vùng đặt chữ (dùng khi render bản dịch ChatGPT). Mặc định tắt: luồng cũ không đổi. */
+    val fillBubble: Boolean = false
 )

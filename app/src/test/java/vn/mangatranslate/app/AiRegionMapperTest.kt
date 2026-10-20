@@ -71,8 +71,9 @@ class AiRegionMapperTest {
         assertTrue(tb.left >= 85f && tb.right <= 125f && tb.top >= 55f && tb.bottom <= 110f)
 
         val o = byId.getValue("2")
-        assertEquals(AiRegionMapper.Action.OVERLAY, o.action)
-        assertFalse(o.coverBox!!.intersects(art))
+        assertEquals(AiRegionMapper.Action.OPEN, o.action)
+        assertNotNull(o.bubble)
+        assertFalse(o.textBox!!.intersects(art))
         assertFalse(o.layoutBox!!.intersects(art))
 
         assertEquals(AiRegionMapper.Action.SKIP, byId.getValue("3").action)
@@ -82,7 +83,8 @@ class AiRegionMapperTest {
         // Không quyết định nào được phép đụng vào vùng hình vẽ.
         for (d in ds) {
             if (d.action == AiRegionMapper.Action.SKIP) continue
-            assertFalse("Vùng #${d.ids} đè lên hình vẽ", (d.coverBox ?: d.textBox!!).intersects(art))
+            assertFalse("Vùng #${d.ids} đè lên hình vẽ", d.textBox!!.intersects(art))
+            assertFalse("Vùng #${d.ids}: vùng đặt chữ đè lên hình vẽ", d.layoutBox!!.intersects(art))
         }
     }
 

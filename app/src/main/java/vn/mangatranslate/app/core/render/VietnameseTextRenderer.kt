@@ -247,7 +247,8 @@ class VietnameseTextRenderer {
     ): Fit {
         fun attempt(area: BoxF): Fit? {
             if (area.width < 4f || area.height < 4f) return null
-            val b = FontSizing.bounds(imageW, region.lineHeight, area.height)
+            val b = if (style.fillBubble) FontSizing.fillBounds(imageW, area.height)
+            else FontSizing.bounds(imageW, region.lineHeight, area.height)
             val first = build(text, paint, b.min, area.width, style)
             if (!fits(first, area, text)) return null
             val top = build(text, paint, b.max, area.width, style)
@@ -276,7 +277,7 @@ class VietnameseTextRenderer {
         )
         attempt(bigger)?.let { return it }
         // Không vừa: vẫn vẽ đủ nội dung ở cỡ nhỏ nhất và báo tràn khung.
-        val minSize = FontSizing.bounds(imageW, region.lineHeight, bigger.height).min
+        val minSize = (if (style.fillBubble) FontSizing.fillBounds(imageW, bigger.height) else FontSizing.bounds(imageW, region.lineHeight, bigger.height)).min
         return Fit(build(text, paint, minSize, max(bigger.width, 4f), style), bigger, minSize, false)
     }
 
@@ -363,7 +364,10 @@ class VietnameseTextRenderer {
         val px = IntArray(r.width * r.height)
         out.getPixels(px, 0, r.width, r.left, r.top, r.width, r.height)
         for (y in 0 until r.height) for (x in 0 until r.width) {
-            if (b.isHoleDilated(((r.left + x) * s).toInt(), ((r.top + y) * s).toInt())) {
+            val gx = ((r.left + x) * s).toInt()
+            val gy = ((r.top + y) * s).toInt()
+            // Chỉ tô điểm thuộc lòng bong bóng: phần nới 1 px quanh nét chữ không bao giờ lấn sang viền/hình vẽ.
+            if (b.isHoleDilated(gx, gy) && b.isInterior(gx, gy)) {
                 val i = y * r.width + x
                 px[i] = if (debug) blend(px[i], Color.RED, 0.6f) else color
             }
