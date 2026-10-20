@@ -89,6 +89,27 @@ class AiRegionMapperTest {
     }
 
     @Test
+    fun smallAiBoxInsideClosedBubbleUsesSafeFallback() {
+        val g = page()
+        val bubbles = BubbleDetector().detect(g)
+        // A tiny bounding box centered on one glyph, much smaller than the bubble.
+        // Previously the maximum 6x bubble/AI size ratio rejected it.
+        val candidate = region("tiny", "dialogue", 88.0, 57.0, 12.0, 18.0)
+        val result = AiRegionMapper.map(listOf(candidate), w, h, g, 1f, bubbles).single()
+        assertEquals(AiRegionMapper.Action.BUBBLE, result.action)
+        assertNotNull(result.bubble)
+        assertTrue(result.reason.contains("dự phòng"))
+    }
+
+    @Test
+    fun aiBoxOnArtworkDoesNotUseBubbleFallback() {
+        val g = page()
+        val candidate = region("art", "dialogue", 215.0, 160.0, 15.0, 18.0)
+        val result = AiRegionMapper.map(listOf(candidate), w, h, g, 1f, BubbleDetector().detect(g)).single()
+        assertEquals(AiRegionMapper.Action.SKIP, result.action)
+    }
+
+    @Test
     fun missingBboxOrTranslationIsSkipped() {
         val g = page()
         val ds = AiRegionMapper.map(
