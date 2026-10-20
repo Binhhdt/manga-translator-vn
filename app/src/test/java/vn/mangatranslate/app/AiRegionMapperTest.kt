@@ -111,6 +111,14 @@ class AiRegionMapperTest {
     }
 
     @Test
+    fun separateAiTextBoxesMustNotBeMergedJustBecauseDetectorLabelMatches() {
+        val a = BoxF(90f, 80f, 130f, 140f)
+        val b = BoxF(160f, 90f, 205f, 150f)
+        assertFalse(AiRegionMapper.canMergeTextBoxes(a, b))
+        assertTrue(AiRegionMapper.canMergeTextBoxes(a, BoxF(95f, 85f, 133f, 145f)))
+    }
+
+    @Test
     fun missingBboxOrTranslationIsSkipped() {
         val g = page()
         val ds = AiRegionMapper.map(
